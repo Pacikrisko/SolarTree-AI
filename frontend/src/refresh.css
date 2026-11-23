@@ -383,3 +383,7 @@
 }
 .tree-grid .tree-card-name h3 { letter-spacing: -.035em; overflow-wrap: anywhere; }
 .tree-grid .tree-card-name > span { font-variant-numeric: tabular-nums; letter-spacing: .06em; }
+
+.language-switch { display:inline-flex; align-items:center; justify-content:center; gap:5px; min-height:36px; padding:0 8px; flex:none; border:1px solid var(--app-edge); border-radius:10px; background:var(--app-surface); color:var(--app-text); font:inherit; font-size:12px; font-weight:700; cursor:pointer; }
+.signin .language-switch { margin-bottom:14px; background:var(--signin-input); border-color:var(--signin-border); color:var(--signin-ink); }
+@media(max-width:600px){ .top-actions .language-switch { padding:0 5px; } .top-actions .language-switch svg { display:none; } .top-heading { min-width:0; } .top-heading h1 {overflow:hidden; text-overflow:ellipsis; white-space:nowrap;} }

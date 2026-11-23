@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, ForeignKey, Float, Boolean, UniqueConstraint
+from sqlalchemy import String, DateTime, ForeignKey, Float, Boolean, UniqueConstraint, Index, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from .database import Base
 
@@ -101,3 +101,20 @@ class DeviceSample(Base):
     power_w: Mapped[float | None] = mapped_column(Float, nullable=True)
     water_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     oxygen_flow_lph: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class ChatExchange(Base):
+    __tablename__ = 'chat_exchanges'
+    __table_args__ = (
+        UniqueConstraint('user_id', 'request_id'),
+        Index('ix_chat_owner_scope_id', 'user_id', 'tree_id', 'id'),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
+    tree_id: Mapped[int | None] = mapped_column(ForeignKey('trees.id'), nullable=True)
+    request_id: Mapped[str] = mapped_column(String(36))
+    question: Mapped[str] = mapped_column(Text)
+    reply: Mapped[str] = mapped_column(Text)
+    mode: Mapped[str] = mapped_column(String(12))
+    model: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

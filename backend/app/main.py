@@ -1,6 +1,7 @@
 """SolarTree AI API: account-scoped monitoring; advisory-only analytics and chat."""
 import os
 from pathlib import Path
+from uuid import UUID, uuid4
 import random
 import logging
 import base64
@@ -23,7 +24,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, desc, func, update, or_
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from .database import Base, engine, get_db, SessionLocal
-from .models import User, Tree, Reading, Alert, Maintenance, DeviceRegistration, MobilePairSession, DeviceSample
+from .models import User, Tree, Reading, Alert, Maintenance, DeviceRegistration, MobilePairSession, DeviceSample, ChatExchange
 from .seed import DEMO_MODE, seed_demo
 from .security import hash_password, verify_password, create_token, current_user, require_user
 from .ml import predict_power, detect_anomaly
@@ -76,6 +77,8 @@ class HistoryTurn(BaseModel):
     role: Literal['user','assistant']
     content: str = Field(min_length=1,max_length=1500)
 class ChatIn(BaseModel):
+    request_id: UUID | None = None
+    language: Literal['bg','en'] = 'bg'
     message: str = Field(min_length=1,max_length=1600)
     tree_id: int | None = None
     report: Literal['overview','energy','maintenance'] | None = None
@@ -271,7 +274,7 @@ class SensorIn(BaseModel):
     oxygen_flow_lph: float | None = Field(default=None,ge=0,le=100000)
 
 @app.post('/api/pair-sessions')
-def create_pair_session(db:Session=Depends(get_db),user:User=Depends(logged_in)):
+def create_pair_session(language:Literal['bg','en']='bg',db:Session=Depends(get_db),user:User=Depends(logged_in)):
     token=secrets.token_urlsafe(32)
     expiry=datetime.now(timezone.utc).replace(tzinfo=None)+timedelta(minutes=5)
     session=MobilePairSession(user_id=user.id,token_hash=sha256(token.encode()).hexdigest(),expires_at=expiry)
@@ -281,6 +284,8 @@ def create_pair_session(db:Session=Depends(get_db),user:User=Depends(logged_in))
     url=f'{origin}/scan/{token}' if origin.startswith('https://') else None
     image=None
     if url:
+        if language=='en':
+            url+='?lang=en'
         buffer=io.BytesIO()
         qrcode.make(url).save(buffer,format='PNG')
         image='data:image/png;base64,'+base64.b64encode(buffer.getvalue()).decode()
@@ -309,11 +314,11 @@ def mobile_session(db:Session,token:str)->MobilePairSession:
     return row
 
 @app.get('/scan/{token}')
-def phone_scanner(token:str,db:Session=Depends(get_db)):
+def phone_scanner(token:str,lang:Literal['bg','en']='bg',db:Session=Depends(get_db)):
     session=mobile_session(db,token)
     if session.status!='pending':
         raise HTTPException(status_code=410,detail='Сесията вече е използвана.')
-    return scanner_page()
+    return scanner_page(lang)
 
 @app.post('/api/scan/{token}')
 def phone_scan(token:str,data:ScanIn,db:Session=Depends(get_db)):
@@ -588,9 +593,36 @@ def device_ingest(code:str,metrics:ReadingIn,db:Session=Depends(get_db),x_device
     if is_urban_simulator(tree):
         raise HTTPException(status_code=409,detail='Този сериен номер е за виртуалния Urban 2K.')
     return save_reading(db,tree,metrics,'device')
+def exchanges_for(user_id,tree_id):
+    return select(ChatExchange).where(ChatExchange.user_id==user_id,ChatExchange.tree_id==tree_id)
+
+def exchange_json(row):
+    return {'id':row.id,'question':row.question,'reply':row.reply,'mode':row.mode,'model':row.model,
+            'tree_id':row.tree_id,'created_at':row.created_at.isoformat()+'Z'}
+
+@app.get('/api/chat/history')
+def chat_history(tree_id:int|None=None,before:int|None=Query(None,gt=0),
+                 db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    if tree_id is not None:
+        find_tree(db,tree_id,user)
+    query=exchanges_for(user.id,tree_id)
+    if before is not None:
+        query=query.where(ChatExchange.id<before)
+    rows=db.scalars(query.order_by(desc(ChatExchange.id)).limit(31)).all()
+    return {'exchanges':[exchange_json(row) for row in reversed(rows[:30])],'has_more':len(rows)>30}
+
 @app.post('/api/chat')
 def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     focus=find_tree(db,data.tree_id,user) if data.tree_id is not None else None
+    request_id=str(data.request_id or uuid4())
+    existing_query=select(ChatExchange).where(ChatExchange.user_id==user.id,ChatExchange.request_id==request_id)
+    def existing_response(row):
+        if row.tree_id!=data.tree_id or row.question!=data.message:
+            raise HTTPException(status_code=409,detail='Тази заявка вече е използвана.')
+        return exchange_json(row)
+    existing=db.scalar(existing_query)
+    if existing is not None:
+        return existing_response(existing)
     if not data.report and not assistant_provider():
         raise HTTPException(status_code=503,detail='Облачният чат очаква настройка на Cloudflare в Render. Можеш да използваш справките.')
     devices=[]
@@ -613,17 +645,34 @@ def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
                                         'max_w':max(r.power_w for r in rows),'mean_w':round(sum(r.power_w for r in rows)/len(rows),1)}
         devices.append(device)
     if data.report:
-        return {'reply':account_report(data.report,devices),'mode':'report','tree_id':data.tree_id}
-    context={'account':{'name':user.name,'role':user.role},'focus_tree_id':data.tree_id,'trees':devices}
+        result={'reply':account_report(data.report,devices,data.language),'mode':'report'}
+    else:
+        recent=db.scalars(exchanges_for(user.id,data.tree_id).order_by(desc(ChatExchange.id)).limit(4)).all()
+        history=[]
+        for row in reversed(recent):
+            history.extend([{'role':'user','content':row.question},{'role':'assistant','content':row.reply}])
+        context={'account':{'name':user.name,'role':user.role},'focus_tree_id':data.tree_id,'trees':devices,'reply_language':data.language}
+        try:
+            result=answer(data.message,context,history)
+        except AssistantAPIError as exc:
+            # Categorized provider failure; never reveal API keys or raw response bodies.
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        except Exception:
+            logging.getLogger(__name__).exception('Unexpected failure in /api/chat')
+            raise HTTPException(status_code=502, detail='Неочаквана сървърна грешка при AI разговора. Виж терминала на FastAPI за подробности.')
+    exchange=ChatExchange(user_id=user.id,tree_id=data.tree_id,request_id=request_id,question=data.message,
+                          reply=result['reply'],mode=result['mode'],model=result.get('model'))
+    db.add(exchange)
     try:
-        result=answer(data.message,context,[t.model_dump() for t in data.history])
-    except AssistantAPIError as exc:
-        # Categorized provider failure; never reveal API keys or raw response bodies.
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except Exception:
-        logging.getLogger(__name__).exception('Unexpected failure in /api/chat')
-        raise HTTPException(status_code=502, detail='Неочаквана сървърна грешка при AI разговора. Виж терминала на FastAPI за подробности.')
-    return {**result,'tree_id':data.tree_id}
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing=db.scalar(existing_query)
+        if existing is None:
+            raise
+        return existing_response(existing)
+    return exchange_json(exchange)
+
 
 
 # Serve the built React application from the same HTTPS host as FastAPI. This avoids

@@ -29,3 +29,5 @@ export interface ResourceEstimate {
   fuel_cell_efficiency:number;fuel_cell_hydrogen_consumption_nlph:number;
   hydrogen_runtime_hours:number|null;standard_conditions:string;basis:string
 }
+
+export interface ChatExchange { id:number; tree_id:number|null; question:string; reply:string; mode:'llm'|'report'; model:string|null; created_at:string }

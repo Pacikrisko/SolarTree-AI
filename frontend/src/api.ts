@@ -1,4 +1,4 @@
-import type {Alert, ChatMessage, Forecast, Health, Reading, Service, TokenPayload, Tree, TreeConfig, User, PairResult, OxygenHistory, PairSessionStart, PairSessionStatus, ResourceEstimate} from './types'
+import type {Alert, ChatExchange, Forecast, Health, Reading, Service, TokenPayload, Tree, TreeConfig, User, PairResult, OxygenHistory, PairSessionStart, PairSessionStatus, ResourceEstimate} from './types'
 let token = localStorage.getItem('solartree_token') || ''
 export function setAuthToken(value:string) {
   token=value
@@ -57,7 +57,7 @@ export const api={
   serviceDone:(treeId:number,component:string)=>request<{ok:boolean}>(`/trees/${treeId}/maintenance/${component}/complete`,{method:'POST'}),
   ack:(id:number)=>request<{ok:boolean}>(`/alerts/${id}/ack`,{method:'POST'}),
   simulate:(id:number,mode:'normal'|'anomaly')=>request<unknown>(`/trees/${id}/simulate`,{method:'POST',body:JSON.stringify({mode})}),
-  startPairSession:()=>request<PairSessionStart>('/pair-sessions',{method:'POST'}),
+  startPairSession:(language:'bg'|'en')=>request<PairSessionStart>(`/pair-sessions?language=${language}`,{method:'POST'}),
   pairSessionStatus:(id:number)=>request<PairSessionStatus>(`/pair-sessions/${id}`),
   pairResolve:(code:string,claim_token:string)=>request<PairResult>('/pair/resolve',{method:'POST',body:JSON.stringify({code,claim_token})}),
   removeTree:(id:number)=>request<{ok:boolean}>(`/trees/${id}`,{method:'DELETE'}),
@@ -68,5 +68,12 @@ export const api={
     if(!response.ok)throw new Error('Неуспешно зареждане на медийния файл.')
     return response.blob()
   },
-  chat:(message:string,tree_id:number|null,history:ChatMessage[],report?:'overview'|'energy'|'maintenance')=>request<{reply:string;mode:'llm'|'report';model?:string}>('/chat',{method:'POST',body:JSON.stringify({message,tree_id,report,history:history.slice(-8).map(turn=>({...turn,content:turn.content.slice(0,1500)}))})}),
+  chatHistory:(treeId:number|null,before?:number)=>{
+    const params=new URLSearchParams()
+    if(treeId!==null)params.set('tree_id',String(treeId))
+    if(before!==undefined)params.set('before',String(before))
+    return request<{exchanges:ChatExchange[];has_more:boolean}>(`/chat/history?${params}`)
+  },
+  chat:(message:string,tree_id:number|null,request_id:string,language:'bg'|'en',report?:'overview'|'energy'|'maintenance')=>
+    request<ChatExchange>('/chat',{method:'POST',body:JSON.stringify({message,tree_id,request_id,language,report})}),
 }

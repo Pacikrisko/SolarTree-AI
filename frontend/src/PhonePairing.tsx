@@ -1,3 +1,4 @@
+import {tr,getLanguage} from './language'
 import {useEffect,useState} from 'react'
 import {Smartphone,RefreshCcw,Copy,CheckCircle2,ShieldCheck} from 'lucide-react'
 import {api} from './api'
@@ -13,7 +14,7 @@ export default function PhonePairing({onAdded}:{onAdded:(treeId:number)=>Promise
     if(!session?.url)return
     try{await navigator.clipboard.writeText(session.url);setCopied(true)}catch{setShowLink(true)}
   }
-  async function start(){setBusy(true);setError('');try{const s=await api.startPairSession();setSession(s);setStatus('pending');setShowLink(false);setCopied(false)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+  async function start(){setBusy(true);setError('');try{const s=await api.startPairSession(getLanguage());setSession(s);setStatus('pending');setShowLink(false);setCopied(false)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
   useEffect(()=>{if(!session||status!=='pending')return
     let running=true
     let checking=false
@@ -30,18 +31,18 @@ export default function PhonePairing({onAdded}:{onAdded:(treeId:number)=>Promise
     return()=>{running=false;window.clearInterval(interval)}
   },[session,status,onAdded])
   return <section className="phone-pair">
-    <div className="phone-pair-title"><Smartphone size={21}/><div><strong>Сканирай с телефон</strong><small>Отвори скенер само с камера. Дървото се появява автоматично тук.</small></div></div>
-    {!session?<button className="btn btn-primary full" type="button" onClick={start} disabled={busy}>{busy?'Подготовка…':'Създай линк за телефона'}</button>:
-    session.needs_https?<div className="phone-setup"><ShieldCheck size={20}/><div><strong>Необходим е защитен адрес</strong><p>За камерата на телефона настрой <code>PUBLIC_SCANNER_URL</code> в <code>backend/.env</code> към HTTPS адреса на скенера. След това рестартирай сървъра и натисни „Нов линк“.</p></div><button type="button" onClick={start} disabled={busy} className="btn btn-outline"><RefreshCcw size={14}/> Нов линк</button></div>:
+    <div className="phone-pair-title"><Smartphone size={21}/><div><strong>{tr("Сканирай с телефон")}</strong><small>{tr("Отвори скенер само с камера. Дървото се появява автоматично тук.")}</small></div></div>
+    {!session?<button className="btn btn-primary full" type="button" onClick={start} disabled={busy}>{busy?tr("Подготовка…"):tr("Създай линк за телефона")}</button>:
+    session.needs_https?<div className="phone-setup"><ShieldCheck size={20}/><div><strong>{tr("Необходим е защитен адрес")}</strong><p>{tr("За камерата на телефона настрой")} <code>PUBLIC_SCANNER_URL</code> {tr("в")} <code>backend/.env</code> {tr("към HTTPS адреса на скенера. След това рестартирай сървъра и натисни „Нов линк“.")}</p></div><button type="button" onClick={start} disabled={busy} className="btn btn-outline"><RefreshCcw size={14}/> {tr("Нов линк")}</button></div>:
     <div className="phone-pair-ready">
-      {session.qr_data_uri&&<img src={session.qr_data_uri} alt="Временен QR код за отваряне на скенер на телефон" className="session-qr"/>}
-      <div className="phone-pair-instructions"><strong>{status==='pending'?'Очаквам сканиране…':status==='completed'?'Устройството е добавено':'Сесията е изтекла'}</strong>
-        <p>1. Сканирай този код от екрана с телефона.</p><p>2. Отвори камерата и насочи към QR етикета върху дървото.</p><p>3. То се добавя към твоя профил без повторно влизане.</p>
-        <div className="phone-pair-buttons"><button type="button" className="btn btn-outline btn-small" onClick={copyLink}><Copy size={14}/> {copied?'Копирано':'Копирай линка'}</button><button type="button" className="btn btn-quiet btn-small" disabled={busy} onClick={start}><RefreshCcw size={14}/> Нов линк</button></div>
-        {showLink&&<label>Копирай линка ръчно<input readOnly value={session.url||''} onFocus={e=>e.target.select()}/></label>}
+      {session.qr_data_uri&&<img src={session.qr_data_uri} alt={tr("Временен QR код за отваряне на скенер на телефон")} className="session-qr"/>}
+      <div className="phone-pair-instructions"><strong>{status==='pending'?tr("Очаквам сканиране…"):status==='completed'?tr("Устройството е добавено"):tr("Сесията е изтекла")}</strong>
+        <p>{tr("1. Сканирай този код от екрана с телефона.")}</p><p>{tr("2. Отвори камерата и насочи към QR етикета върху дървото.")}</p><p>{tr("3. То се добавя към твоя профил без повторно влизане.")}</p>
+        <div className="phone-pair-buttons"><button type="button" className="btn btn-outline btn-small" onClick={copyLink}><Copy size={14}/> {copied?tr("Копирано"):tr("Копирай линка")}</button><button type="button" className="btn btn-quiet btn-small" disabled={busy} onClick={start}><RefreshCcw size={14}/> {tr("Нов линк")}</button></div>
+        {showLink&&<label>{tr("Копирай линка ръчно")}<input readOnly value={session.url||''} onFocus={e=>e.target.select()}/></label>}
       </div>
     </div>}
-    {status==='completed'&&<p className="pairing-complete"><CheckCircle2 size={16}/> Успешно сдвояване</p>}
-    {error&&<p className="pair-scan-error">{error}</p>}
+    {status==='completed'&&<p className="pairing-complete"><CheckCircle2 size={16}/> {tr("Успешно сдвояване")}</p>}
+    {error&&<p className="pair-scan-error">{tr(error)}</p>}
   </section>
 }

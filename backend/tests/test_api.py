@@ -377,3 +377,46 @@ def test_energy_report_uses_latest_available_value_per_metric():
             'latest_sensors':{'time':'2026-10-01T10:00:00Z','power_w':54,'water_pct':84}}
     report=account_report('energy',[device])
     assert 'Мощност: 0 W' in report and 'Вода: 84 %' in report and 'Кислород: няма данни' in report
+
+
+def test_chat_history_is_persistent_private_and_paginated(monkeypatch):
+    from uuid import uuid4
+    def register(c,login):
+        password='ChatHistoryTest123'
+        account={'name':'History owner','email':login,'password':password}
+        assert c.post('/api/auth/register',json=account).is_success
+        return auth(c,login,password)
+
+    with TestClient(app) as c:
+        owner=register(c,'chat-history-a@example.org')
+        other=register(c,'chat-history-b@example.org')
+        assert c.get('/api/chat/history').status_code==401
+        request={'message':'Status','report':'overview','language':'en','request_id':str(uuid4())}
+        saved=c.post('/api/chat',headers=owner,json=request).json()
+        assert saved['reply']=='There are no trees in this account.'
+        assert c.post('/api/chat',headers=owner,json=request).json()['id']==saved['id']
+        assert c.get('/api/chat/history',headers=other).json()['exchanges']==[]
+        assert c.get('/api/chat/history',headers=owner).json()['exchanges']==[saved]
+        monkeypatch.setenv('OPENAI_API_KEY','test-only')
+        captured=[]
+        def fake_reply(message,context,history):
+            captured.append(history)
+            return {'reply':'Test reply','mode':'llm','model':'test'}
+        monkeypatch.setattr('app.main.answer',fake_reply)
+        assert c.post('/api/chat',headers=owner,json={'message':'Follow-up'}).is_success
+        assert [turn['content'] for turn in captured[-1]]==[saved['question'],saved['reply']]
+        for i in range(30):
+            assert c.post('/api/chat',headers=owner,json={'message':str(i),'report':'overview'}).is_success
+        city=auth(c,'municipality@demo.bg')
+        tree=c.get('/api/trees',headers=city).json()[0]['id']
+        focused=c.post('/api/chat',headers=city,json={'message':'History scope','tree_id':tree,'report':'overview'}).json()
+        assert focused in c.get('/api/chat/history',params={'tree_id':tree},headers=city).json()['exchanges']
+        assert focused not in c.get('/api/chat/history',headers=city).json()['exchanges']
+        assert c.get('/api/chat/history',params={'tree_id':tree},headers=other).status_code==404
+    with TestClient(app) as second_device:
+        auth_again=auth(second_device,'chat-history-a@example.org','ChatHistoryTest123')
+        latest=second_device.get('/api/chat/history',headers=auth_again).json()
+        assert len(latest['exchanges'])==30 and latest['has_more']
+        older=second_device.get('/api/chat/history',params={'before':latest['exchanges'][0]['id']},headers=auth_again).json()
+        assert len(older['exchanges'])==2 and not older['has_more']
+        assert older['exchanges'][0]==saved

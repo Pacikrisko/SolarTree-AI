@@ -1,3 +1,4 @@
+import {tr} from './language'
 import { useEffect, useRef, useState } from 'react'
 import { Camera, CameraOff, ImagePlus, ScanLine } from 'lucide-react'
 
@@ -19,7 +20,7 @@ export function readPairingCode(raw:string):{code:string;claim_token:string}{
       }
     }catch{ /* Unrecognized QR content */ }
   }
-  if(!/^[A-Za-z0-9-]{3,40}$/.test(code)||claim_token.length<12||claim_token.length>200)throw new Error('QR кодът не е за сдвояване със SolarTree.')
+  if(!/^[A-Za-z0-9-]{3,40}$/.test(code)||claim_token.length<12||claim_token.length>200)throw new Error(tr("QR кодът не е за сдвояване със SolarTree."))
   return {code:code.toUpperCase(),claim_token}
 }
 
@@ -43,8 +44,8 @@ export default function PairQrScanner({onRead}:{onRead:(code:string,claim_token:
   }
   async function start(){
     setError('')
-    if(!available){setError('Този браузър не поддържа QR сканиране. Използвай Chrome/Edge или въведи кода ръчно.');return}
-    if(!navigator.mediaDevices?.getUserMedia){setError('Камерата е достъпна само през localhost или защитена HTTPS връзка.');return}
+    if(!available){setError(tr("Този браузър не поддържа QR сканиране. Използвай Chrome/Edge или въведи кода ръчно."));return}
+    if(!navigator.mediaDevices?.getUserMedia){setError(tr("Камерата е достъпна само през localhost или защитена HTTPS връзка."));return}
     try{
       const media=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false})
       stream.current=media
@@ -67,28 +68,28 @@ export default function PairQrScanner({onRead}:{onRead:(code:string,claim_token:
         frame.current=requestAnimationFrame(tick)
       }
       frame.current=requestAnimationFrame(tick)
-    }catch{setError('Не може да се отвори камерата. Разреши достъпа или използвай ръчно въвеждане.');stop()}
+    }catch{setError(tr("Не може да се отвори камерата. Разреши достъпа или използвай ръчно въвеждане."));stop()}
   }
   async function fromImage(file:File|undefined){
     if(!file)return
-    if(!available){setError('Браузърът не поддържа разчитане на QR изображения.');return}
+    if(!available){setError(tr("Браузърът не поддържа разчитане на QR изображения."));return}
     let bitmap:ImageBitmap|null=null
     try{
       bitmap=await createImageBitmap(file)
       const Detect=(window as unknown as {BarcodeDetector:BarcodeDetectorClass}).BarcodeDetector
       const codes=await new Detect({formats:['qr_code']}).detect(bitmap)
-      if(!codes.length){setError('Не е намерен QR код в изображението.');return}
+      if(!codes.length){setError(tr("Не е намерен QR код в изображението."));return}
       handleScan(codes[0].rawValue)
-    }catch{setError('Неуспешно разчитане на изображението.')}finally{bitmap?.close()}
+    }catch{setError(tr("Неуспешно разчитане на изображението."))}finally{bitmap?.close()}
   }
   return <div className="pair-scanner">
-    <div className="pair-scan-heading"><ScanLine size={18}/><strong>Сдвояване с QR код</strong></div>
-    <p>Сканирай регистрационния QR код, предоставен с устройството. Системата разпознава модела автоматично.</p>
+    <div className="pair-scan-heading"><ScanLine size={18}/><strong>{tr("Сдвояване с QR код")}</strong></div>
+    <p>{tr("Сканирай регистрационния QR код, предоставен с устройството. Системата разпознава модела автоматично.")}</p>
     <video ref={video} muted playsInline className={`pair-video ${active?'active':''}`}/>
     <div className="pair-scan-actions">
-      <button type="button" className="btn btn-outline" onClick={active?stop:start}>{active?<><CameraOff size={16}/> Спри камерата</>:<><Camera size={16}/> Сканирай с камера</>}</button>
-      <label className="btn btn-quiet pair-file"><ImagePlus size={16}/> QR от снимка<input aria-label="Снимка на QR код" type="file" accept="image/*" onChange={e=>{void fromImage(e.target.files?.[0]);e.target.value=''}}/></label>
+      <button type="button" className="btn btn-outline" onClick={active?stop:start}>{active?<><CameraOff size={16}/> {tr("Спри камерата")}</>:<><Camera size={16}/> {tr("Сканирай с камера")}</>}</button>
+      <label className="btn btn-quiet pair-file"><ImagePlus size={16}/> {tr("QR от снимка")}<input aria-label={tr("Снимка на QR код")} type="file" accept="image/*" onChange={e=>{void fromImage(e.target.files?.[0]);e.target.value=''}}/></label>
     </div>
-    {error&&<div role="alert" className="pair-scan-error">{error}</div>}
+    {error&&<div role="alert" className="pair-scan-error">{tr(error)}</div>}
   </div>
 }
