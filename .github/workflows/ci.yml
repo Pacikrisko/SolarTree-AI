@@ -36,3 +36,5 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Typecheck and build React
         run: npm run build
+      - name: Test telemetry and session handling
+        run: node --experimental-strip-types --test tests/*.test.mjs

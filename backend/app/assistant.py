@@ -30,9 +30,9 @@ def account_report(kind, devices):
         elif kind=='energy':
             last=d['latest'] or {}
             sensors=d['latest_sensors'] or {}
+            samples=sorted((sensors,last),key=lambda sample: sample.get('time','').removesuffix('Z'),reverse=True)
             for field,label,unit in [('power_w','Мощност','W'),('water_pct','Вода','%'),('oxygen_flow_lph','Кислород','L/h')]:
-                source=sensors if sensors.get(field) is not None else last
-                value=source.get(field)
+                value=next((sample[field] for sample in samples if sample.get(field) is not None),None)
                 lines.append(f"{label}: {value:g} {unit}" if value is not None else f"{label}: няма данни")
         else:
             lines.append(f"{d['model']['name']} · {d['location']}")

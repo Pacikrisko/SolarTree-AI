@@ -5,13 +5,23 @@ export function setAuthToken(value:string) {
   if (value) localStorage.setItem('solartree_token',value)
   else localStorage.removeItem('solartree_token')
 }
+export function hasAuthToken() { return Boolean(token) }
+function checkSession(status:number, sentToken:string) {
+  if(status===401 && sentToken && sentToken===token) {
+    setAuthToken('')
+    window.dispatchEvent(new Event('solartree-session-ended'))
+  }
+}
 async function request<T>(path:string, options:RequestInit={}):Promise<T> {
   const headers:Record<string,string>={'Content-Type':'application/json'}
-  if(token) headers.Authorization=`Bearer ${token}`
+  const sentToken=token
+  if(sentToken) headers.Authorization=`Bearer ${sentToken}`
   const response=await fetch(`/api${path}`,{...options,headers:{...headers,...(options.headers as Record<string,string>||{})}})
   if(!response.ok){
+    checkSession(response.status,sentToken)
     let message=`Грешка ${response.status}`
-    try {const json=await response.json(); if(typeof json.detail==='string')message=json.detail} catch { /* fallback */ }
+    try {const json=await response.json(); if(typeof json.detail==='string')message=json.detail
+      else if(Array.isArray(json.detail))message='Провери въведените данни и дължината на полетата.'} catch { /* fallback */ }
     throw new Error(message)
   }
   return response.json() as Promise<T>

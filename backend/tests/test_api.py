@@ -355,3 +355,22 @@ def test_cloudflare_chat_and_reports(monkeypatch):
         assert c.post('/api/chat',headers=city,json={'message':'Справка','report':'overview'}).status_code==200
         monkeypatch.delenv('CLOUDFLARE_API_TOKEN')
         assert not c.get('/api/health').json()['real_llm']
+
+
+def test_labels_checked_after_trimming():
+    with TestClient(app) as c:
+        own=auth(c)
+        assert c.patch('/api/auth/me',headers=own,json={'name':' x '}).status_code==422
+        assert c.post('/api/auth/register',json={'name':'   ','email':'spaces@example.org','password':'SamplePass1234'}).status_code==422
+        base={**pair('private'),'name':'Test tree','location':'Sofia'}
+        for field in ('name','location'):
+            assert c.post('/api/trees',headers=own,json={**base,field:'   '}).status_code==422
+
+
+def test_energy_report_uses_latest_available_value_per_metric():
+    from app.assistant import account_report
+    device={'name':'Test','code':'test','connection':'live',
+            'latest':{'time':'2026-10-01T10:00:00.100000Z','power_w':0,'water_pct':None},
+            'latest_sensors':{'time':'2026-10-01T10:00:00Z','power_w':54,'water_pct':84}}
+    report=account_report('energy',[device])
+    assert 'Мощност: 0 W' in report and 'Вода: 84 %' in report and 'Кислород: няма данни' in report

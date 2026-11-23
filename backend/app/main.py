@@ -13,12 +13,12 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from secrets import compare_digest
 from hashlib import sha256
-from typing import Literal
+from typing import Annotated, Literal
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Depends, HTTPException, Header, UploadFile, File, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc, func, update, or_
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
@@ -54,14 +54,14 @@ class LoginIn(BaseModel):
     email: str
     password: str
 class RegisterIn(BaseModel):
-    name: str = Field(min_length=2,max_length=100)
+    name: Annotated[str, StringConstraints(strip_whitespace=True,min_length=2,max_length=100)]
     email: str = Field(min_length=5,max_length=200)
     password: str = Field(min_length=8,max_length=128)
 class TreeIn(BaseModel):
-    name: str = Field(min_length=2,max_length=120)
+    name: Annotated[str, StringConstraints(strip_whitespace=True,min_length=2,max_length=120)]
     code: str = Field(min_length=3,max_length=40,pattern=r'^[A-Za-z0-9-]+$')
     claim_token: str = Field(min_length=12,max_length=200)
-    location: str = Field(min_length=3,max_length=150)
+    location: Annotated[str, StringConstraints(strip_whitespace=True,min_length=3,max_length=150)]
     lat: float | None = Field(default=None,ge=-90,le=90)
     lng: float | None = Field(default=None,ge=-180,le=180)
 class ReadingIn(BaseModel):
@@ -84,7 +84,7 @@ class PairIn(BaseModel):
     code: str = Field(min_length=3,max_length=40)
     claim_token: str = Field(min_length=12,max_length=200)
 class UpdateProfileIn(BaseModel):
-    name: str = Field(min_length=2,max_length=100)
+    name: Annotated[str, StringConstraints(strip_whitespace=True,min_length=2,max_length=100)]
 class ChangePasswordIn(BaseModel):
     current_password: str
     new_password: str = Field(min_length=8,max_length=128)
