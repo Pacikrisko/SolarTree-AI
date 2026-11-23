@@ -280,3 +280,91 @@
 @media(max-width:950px){.resource-grid{grid-template-columns:1fr}}
 @media(max-width:630px){.resource-planner{padding:16px}.resource-head{flex-direction:column}.resource-fields{grid-template-columns:1fr}.resource-card{padding:16px}.resource-stats{gap:8px}.resource-card-top strong{font-size:16px}}
 @media(prefers-reduced-motion:reduce){.resource-card{transition:none}.resource-card:hover{transform:none}}
+
+/* Overview and fleet */
+:root { --chart-power: #b9ed86; --chart-oxygen: #74d7e7; }
+:root[data-theme="light"] { --chart-power: #337a42; --chart-oxygen: #117987; }
+.dashboard .welcome-row {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: 17px;
+  min-height: 204px;
+  padding: clamp(23px, 3vw, 44px);
+  border: 1px solid #345347;
+  border-radius: 22px;
+  background: #102d23;
+}
+.dashboard .welcome-row::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 0 37%;
+  background: linear-gradient(90deg, #102d23 0%, #102d2380 30%, transparent 70%),
+              url('/solar-concept.jpg') center 42% / cover no-repeat;
+}
+.dashboard .welcome-row > div { max-width: 62%; }
+.dashboard .welcome-row h2, :root[data-theme] .dashboard .welcome-row h2 {
+  margin: 8px 0 6px;
+  color: #f6f6df;
+  font: 500 clamp(29px, 3.2vw, 50px)/1.07 Georgia, 'Times New Roman', serif;
+  letter-spacing: -.045em;
+  overflow-wrap: anywhere;
+}
+.dashboard .welcome-row .eyebrow { color: #c7e9ad; letter-spacing: .12em; text-transform: uppercase; }
+.dashboard .welcome-row .accent-tick { background: #bbef91; }
+.dashboard .welcome-row .welcome-dot { color: #c2ed95; }
+:root[data-theme] .dashboard .welcome-row p { color: #d4e4d8; line-height: 1.5; }
+:root[data-theme] .dashboard .welcome-row .btn {
+  display: inline-flex;
+  width: auto;
+  min-height: 40px;
+  padding: 9px 15px;
+  color: #112d1d;
+  background: #c9ee9e;
+  border: 1px solid #c9ee9e;
+  border-radius: 100px;
+}
+.dashboard .stat-card {
+  --metric-accent: var(--app-accent);
+  border-top: 3px solid var(--metric-accent);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--metric-accent) 7%, var(--app-surface)), var(--app-surface) 75%);
+}
+.dashboard .stat-blue { --metric-accent: var(--chart-oxygen); }
+.dashboard .stat-purple { --metric-accent: #a58ac5; }
+.dashboard .stat-orange { --metric-accent: #d98c5a; }
+.dashboard .stat-card > strong { font-variant-numeric: tabular-nums; letter-spacing: -.05em; font-size: clamp(26px, 2.6vw, 38px); }
+.dashboard .stat-icon { border-radius: 50%; }
+.sidebar .side-nav button.selected {
+  box-shadow: inset 3px 0 0 var(--app-accent);
+  background: linear-gradient(90deg, color-mix(in srgb,var(--app-accent) 15%,var(--app-surface)),var(--app-tint));
+}
+.tree-card:focus-visible, .featured-open:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 2px; }
+@media (max-width: 640px) {
+  .dashboard .welcome-row { padding: 19px; min-height: 180px; gap: 12px; }
+  .dashboard .welcome-row > div { max-width: 82%; }
+  .dashboard .welcome-row::before { inset-inline-start: 23%; background-image: linear-gradient(90deg, #102d23 4%, #102d23be 46%, #102d2340), url('/solar-concept.jpg'); }
+  .dashboard .welcome-row h2 { font-size: 30px; }
+  .dashboard .stat-card { padding: 14px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .page-body { animation: dashboard-enter .28s ease-out both; }
+  .dashboard .stat-card { animation: metric-enter .38s ease-out backwards; }
+  .dashboard .stat-card:nth-child(2) { animation-delay: 45ms; }
+  .dashboard .stat-card:nth-child(3) { animation-delay: 90ms; }
+  .dashboard .stat-card:nth-child(4) { animation-delay: 135ms; }
+  .dashboard .featured-panel { animation: dashboard-enter .32s ease-out both; }
+  .tree-card-arrow, .featured-open svg { transition: transform .18s ease-out; }
+  @media (hover: hover) {
+    .tree-card:hover .tree-card-arrow { transform: translateX(3px); }
+    .featured-open:hover svg { transform: translate(2px,-2px); }
+  }
+}
+@keyframes dashboard-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes metric-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

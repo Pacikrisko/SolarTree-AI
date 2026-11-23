@@ -177,20 +177,70 @@
 .signin-switch button { padding: 10px 2px; color: var(--signin-link); background: transparent; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .signin-error { display: flex; align-items: flex-start; gap: 8px; color: #872a23; background: #fff0eb; border-radius: 8px; padding: 10px 12px; font-size: 14px; line-height: 1.45; }
 .signin-error svg { flex: none; margin-top: 2px; }
+
+/* Give the artwork and the form their own space on the sign-in canvas. */
+.signin, :root[data-theme='dark'] .signin {
+  padding: clamp(16px, 3vw, 48px);
+  background: radial-gradient(ellipse at 18% 0%, #294737, transparent 65%), #0c1e17;
+}
+.signin-card {
+  padding: 0;
+  gap: clamp(20px, 4vw, 68px);
+  width: min(1400px, 100%);
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, .85fr);
+  align-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.signin-poster {
+  min-height: clamp(520px, 84dvh, 840px);
+  border-radius: 24px;
+  box-shadow: inset 0 0 0 1px #ffffff20;
+}
+.signin-art { object-position: 50% 45%; }
+.signin-poster::after {
+  background: linear-gradient(155deg, #051a12c9, transparent 36%), linear-gradient(0deg, #061c12ed, transparent 40%);
+}
+.signin-poster figcaption { right: 20px; bottom: clamp(24px, 4vw, 60px); }
+.signin-poster figcaption strong {
+  color: #f6f7dc;
+  font: 500 clamp(38px, 5.2vw, 82px)/1.06 Georgia, 'Times New Roman', serif;
+  letter-spacing: -.045em;
+}
+.signin-poster figcaption span { color: #d4edb8; font-weight: 650; }
+.signin-panel {
+  margin-right: clamp(0px, 2vw, 36px);
+  padding: clamp(30px, 4.2vw, 68px) clamp(24px, 3.6vw, 56px);
+  border: 1px solid var(--signin-border);
+  border-radius: 24px;
+  background: var(--signin-paper);
+  box-shadow: 0 24px 70px #04110c40;
+}
+.signin-input, .signin-submit { border-radius: 12px; }
+.signin-submit { min-height: 52px; }
+@media (prefers-reduced-motion: no-preference) {
+  .signin-art { animation: signin-photo .85s ease-out both; }
+  .signin-panel { animation: signin-arrive .45s ease-out both; }
+  .signin-content header { animation: signin-arrive .28s ease-out both; }
+  .signin-submit svg { transition: transform .18s ease; }
+  .signin-submit:hover:not(:disabled) svg { transform: translateX(3px); }
+}
+@keyframes signin-photo { from { transform: scale(1.035); } to { transform: scale(1); } }
+@keyframes signin-arrive { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 740px) {
   .signin { padding: 14px; }
-  .signin-card { width: min(100%, 480px); grid-template-columns: minmax(0,1fr); padding: 6px; border-radius: 20px; }
-  .signin-poster { min-height: 0; height: clamp(116px, 18dvh, 155px); border-radius: 14px; }
-  .signin-art { width: 52%; left: auto; object-position: 50% 40%; }
-  .signin-poster::after { background: linear-gradient(90deg, #0a2518 25%, #0a2518e8 45%, transparent 75%); }
-  .signin-brand { top: 50%; transform: translateY(-50%); left: 18px; font-size: 22px; }
-  .signin-poster figcaption { display: none; }
-  .signin-panel { padding: 27px clamp(14px, 4vw, 28px) 13px; }
+  .signin-card { width: min(100%, 500px); grid-template-columns: minmax(0,1fr); gap: 12px; }
+  .signin-poster { min-height: 0; height: clamp(122px, 19dvh, 175px); border-radius: 18px; }
+  .signin-art { width: 60%; left: auto; object-position: 54% 38%; }
+  .signin-poster::after { background: linear-gradient(90deg, #0a2518 24%, #0a2518df 43%, transparent 77%); }
+  .signin-brand { top: 22px; left: 20px; font-size: 21px; }
+  .signin-poster figcaption { left: 20px; bottom: 18px; }
+  .signin-poster figcaption span { display: none; }
+  .signin-poster figcaption strong { font-size: clamp(23px, 6vw, 32px); }
+  .signin-panel { margin: 0; padding: 26px clamp(18px, 5vw, 32px) 18px; border-radius: 18px; }
   .signin-content header p { font-size: 14px; }
   .signin-form { margin-top: 22px; gap: 15px; }
   .signin-switch { margin-top: 19px; padding-top: 8px; }
-}
-@media (max-width: 360px) {
-  .signin { padding: 7px; }
-  .signin-panel { padding-inline: 12px; }
 }

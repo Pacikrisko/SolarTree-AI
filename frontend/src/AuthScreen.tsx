@@ -54,7 +54,7 @@ export default function AuthScreen({onSuccess}: {onSuccess: (payload: TokenPaylo
         </figure>
         <section className="signin-panel" aria-labelledby="signin-title">
           <div className="signin-content">
-            <header>
+            <header key={registering ? "register" : "login"}>
               <h1 id="signin-title">{registering ? 'Създай профил' : 'Вход в профила'}</h1>
               <p>{registering ? 'С един профил можеш да добавяш и следиш своите соларни дървета.' : 'Влез, за да следиш устройствата и измерванията си.'}</p>
             </header>
