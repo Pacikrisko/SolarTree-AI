@@ -12,7 +12,7 @@ export interface Service { id:number; tree_id:number; tree_name:string; componen
 export interface Forecast { points:{time:string;power_w:number}[]; mae_w:number|null; trained_samples:number; model:string; synthetic_data?:boolean; disclaimer?:string }
 export interface ChatMessage { role:'user'|'assistant'; content:string; mode?:string }
 export interface TokenPayload { access_token:string; user:User }
-export interface Health { ok:boolean; real_llm:boolean; simulation_enabled:boolean; version:string }
+export interface Health { ok:boolean; real_llm:boolean; ai_provider?:'cloudflare'|'openai'|null; simulation_enabled:boolean; version:string }
 
 export interface PairResult { code:string; model:TreeConfig; kind:'municipal'|'private' }
 export interface OxygenPoint { time:string; oxygen_flow_lph:number; cumulative_l:number; basis:string; source:string }

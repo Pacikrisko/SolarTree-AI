@@ -329,3 +329,29 @@ def test_assistant_only_receives_authenticated_inventory(monkeypatch):
         devices=calls[-1]['trees']
         assert [d['id'] for d in devices]==[tree['id']]
         assert devices[0]['maintenance'] and devices[0]['forecast']['points']
+
+
+def test_cloudflare_chat_and_reports(monkeypatch):
+    import httpx
+    from app.assistant import CLOUDFLARE_MODEL
+    monkeypatch.setenv('CLOUDFLARE_ACCOUNT_ID','a'*32)
+    monkeypatch.setenv('CLOUDFLARE_API_TOKEN','test-only')
+    requests=[]
+    def post(url, *, headers, json, timeout):
+        assert url.endswith('/'+'a'*32+'/ai/run/'+CLOUDFLARE_MODEL)
+        assert headers['Authorization']=='Bearer test-only'
+        assert json['messages'][0]['role']=='system'
+        requests.append(json)
+        return httpx.Response(200,json={'success':True,'result':{'response':'Тестов отговор'}})
+    monkeypatch.setattr('app.assistant.httpx.post',post)
+    with TestClient(app) as c:
+        city=auth(c,'municipality@demo.bg')
+        assert c.get('/api/health').json()['ai_provider']=='cloudflare'
+        res=c.post('/api/chat',headers=city,json={'message':'Как работят дърветата?'})
+        assert res.status_code==200 and res.json()['reply']=='Тестов отговор'
+        assert len(requests)==1
+        monkeypatch.setattr('app.assistant.httpx.post',lambda *a,**k:httpx.Response(429))
+        assert c.post('/api/chat',headers=city,json={'message':'Въпрос'}).status_code==502
+        assert c.post('/api/chat',headers=city,json={'message':'Справка','report':'overview'}).status_code==200
+        monkeypatch.delenv('CLOUDFLARE_API_TOKEN')
+        assert not c.get('/api/health').json()['real_llm']

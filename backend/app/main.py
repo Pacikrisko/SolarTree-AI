@@ -28,7 +28,7 @@ from .seed import DEMO_MODE, seed_demo
 from .security import hash_password, verify_password, create_token, current_user, require_user
 from .ml import predict_power, detect_anomaly
 from .maintenance import initialize_maintenance, maintenance_for, COMPONENTS
-from .assistant import answer, account_report, AssistantAPIError
+from .assistant import answer, account_report, assistant_provider, AssistantAPIError
 from .catalog import get_model, MODELS
 from .resource_math import resource_estimate
 from .urban_history import add_demo_urban_history, is_urban_simulator, urban_readings, urban_sample
@@ -189,7 +189,8 @@ def attach_device(db: Session, reg: DeviceRegistration, user: User, tree: Tree):
 
 @app.get('/api/health')
 def health():
-    return {'ok':True,'real_llm':bool(os.getenv('OPENAI_API_KEY','').strip()),'simulation_enabled':DEMO_MODE,
+    provider=assistant_provider()
+    return {'ok':True,'real_llm':bool(provider),'ai_provider':provider,'simulation_enabled':DEMO_MODE,
             'version':'0.8.0-deploy'}
 @app.post('/api/auth/login')
 def login(data:LoginIn,db:Session=Depends(get_db)):
@@ -590,8 +591,8 @@ def device_ingest(code:str,metrics:ReadingIn,db:Session=Depends(get_db),x_device
 @app.post('/api/chat')
 def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     focus=find_tree(db,data.tree_id,user) if data.tree_id is not None else None
-    if not data.report and not os.getenv('OPENAI_API_KEY','').strip():
-        raise HTTPException(status_code=503,detail='За свободен разговор настрой OPENAI_API_KEY на сървъра.')
+    if not data.report and not assistant_provider():
+        raise HTTPException(status_code=503,detail='Облачният чат очаква настройка на Cloudflare в Render. Можеш да използваш справките.')
     devices=[]
     for tree in ([focus] if focus is not None else accessible_trees(db,user)):
         device=to_tree(db,tree)
