@@ -1,6 +1,6 @@
 import {useCallback,useEffect,useMemo,useRef,useState, type FormEvent, type ReactNode} from 'react'
 import {Area,AreaChart,CartesianGrid,Line,LineChart,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts'
-import {Activity,ArrowLeft,ArrowRight,ArrowUpRight,Bell,BrainCircuit,Check,CheckCircle2,ChevronDown,ChevronRight,CircleAlert,Clock3,Database,Droplets,Filter,Gauge,Info,Leaf,LockKeyhole,LogOut,MapPin,MessageCircle,Plus,RefreshCw,Search,Send,ScanLine,Settings2,Shield,ShieldCheck,SlidersHorizontal,Sparkles,Sun,Moon,Wifi,TreePine,TrendingUp,UserRound,Waves,Wrench,X,Zap, type LucideIcon} from 'lucide-react'
+import {Activity,ArrowLeft,ArrowRight,ArrowUpRight,Bell,BrainCircuit,Check,CheckCircle2,ChevronRight,CircleAlert,Clock3,Database,Droplets,Filter,Gauge,Info,Leaf,LockKeyhole,LogOut,MapPin,MessageCircle,Plus,RefreshCw,Search,Send,ScanLine,Settings2,Shield,ShieldCheck,SlidersHorizontal,Sparkles,Sun,Moon,Wifi,TreePine,TrendingUp,UserRound,Waves,Wrench,X,Zap, type LucideIcon} from 'lucide-react'
 import DeviceMedia from './DeviceMedia'
 import DeviceThumbnail from './DeviceThumbnail'
 import SolarTreeMark from './SolarTreeMark'
