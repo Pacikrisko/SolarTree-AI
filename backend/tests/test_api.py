@@ -56,6 +56,15 @@ def test_qr_claim_and_permissions():
         assert c.post('/api/trees',headers=own,json=payload).status_code==409
         assert c.post('/api/pair/resolve',headers=own,json=private).status_code==409
         assert c.get(f'/api/trees/{t["id"]}',headers=city).status_code==404
+        url=f'/api/trees/{t["id"]}'
+        assert c.delete(url).status_code==401
+        assert c.delete(url,headers=city).status_code==404
+        assert c.delete(url,headers=own).status_code==200
+        assert all(row['id']!=t['id'] for row in c.get('/api/trees',headers=own).json())
+        assert c.get(url+'/readings',headers=own).status_code==404
+        assert c.delete(url,headers=own).status_code==404
+        again=c.post('/api/trees',headers=own,json=payload)
+        assert again.status_code==201 and again.json()['id']!=t['id']
         # municipal QR can only be claimed from municipality account
         municipal=pair('municipal')
         assert c.post('/api/pair/resolve',headers=own,json=municipal).status_code==403

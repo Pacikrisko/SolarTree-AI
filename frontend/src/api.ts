@@ -44,6 +44,7 @@ export const api={
   startPairSession:()=>request<PairSessionStart>('/pair-sessions',{method:'POST'}),
   pairSessionStatus:(id:number)=>request<PairSessionStatus>(`/pair-sessions/${id}`),
   pairResolve:(code:string,claim_token:string)=>request<PairResult>('/pair/resolve',{method:'POST',body:JSON.stringify({code,claim_token})}),
+  removeTree:(id:number)=>request<{ok:boolean}>(`/trees/${id}`,{method:'DELETE'}),
   createTree:(data:{name:string;code:string;claim_token:string;location:string;lat:number|null;lng:number|null})=>request<Tree>('/trees',{method:'POST',body:JSON.stringify(data)}),
 
   loadTreeMedia:async(id:number):Promise<Blob>=>{

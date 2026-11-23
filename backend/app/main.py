@@ -387,6 +387,22 @@ def create_tree(data:TreeIn,db:Session=Depends(get_db),user:User=Depends(logged_
     db.commit();db.refresh(tree)
     initialize_maintenance(db)
     return to_tree(db,tree)
+@app.delete('/api/trees/{tree_id}')
+def remove_tree(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    tree=db.scalar(select(Tree).where(Tree.id==tree_id).with_for_update())
+    if tree is None or not can_manage(user,tree):
+        raise HTTPException(status_code=404,detail='Дървото не е намерено в твоя профил.')
+    registration=db.scalar(select(DeviceRegistration).where(DeviceRegistration.claimed_tree_id==tree.id))
+    if registration:
+        registration.claimed_tree_id=None
+    # Keep historical records on an inaccessible installation. A new pairing
+    # gets its own ID and history, including when the same owner pairs again.
+    tree.code=f'archived:{tree.id}'
+    tree.kind='archived'
+    tree.owner_id=None
+    db.commit()
+    return {'ok':True}
+
 @app.get('/api/trees/{tree_id}')
 def tree_detail(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     return to_tree(db,find_tree(db,tree_id,user))
