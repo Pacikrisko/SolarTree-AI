@@ -359,7 +359,10 @@ def test_cloudflare_chat_and_reports(monkeypatch):
 
 def test_labels_checked_after_trimming():
     with TestClient(app) as c:
-        own=auth(c)
+        payload={'name':'Test owner','email':'label-check@example.org','password':'SamplePass1234'}
+        response=c.post('/api/auth/register',json=payload)
+        assert response.is_success
+        own={'Authorization':'Bearer '+response.json()['access_token']}
         assert c.patch('/api/auth/me',headers=own,json={'name':' x '}).status_code==422
         assert c.post('/api/auth/register',json={'name':'   ','email':'spaces@example.org','password':'SamplePass1234'}).status_code==422
         base={**pair('private'),'name':'Test tree','location':'Sofia'}

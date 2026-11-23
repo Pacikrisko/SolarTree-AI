@@ -5,6 +5,12 @@ export function setAuthToken(value:string) {
   if (value) localStorage.setItem('solartree_token',value)
   else localStorage.removeItem('solartree_token')
 }
+export function syncAuthToken() {
+  const current=localStorage.getItem('solartree_token') || ''
+  if(token===current)return false
+  token=current
+  return true
+}
 export function hasAuthToken() { return Boolean(token) }
 function checkSession(status:number, sentToken:string) {
   if(status===401 && sentToken && sentToken===token) {
