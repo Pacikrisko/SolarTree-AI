@@ -289,6 +289,7 @@
   isolation: isolate;
   overflow: hidden;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: start;
   align-content: center;
   gap: 17px;
@@ -368,3 +369,17 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+.tree-grid .tree-card {
+  border-radius: 20px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--app-accent) 6%, var(--app-surface)), var(--app-surface) 60%);
+}
+.tree-card .tree-card-arrow {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--app-accent);
+  background: var(--app-tint);
+}
+.tree-grid .tree-card-name h3 { letter-spacing: -.035em; overflow-wrap: anywhere; }
+.tree-grid .tree-card-name > span { font-variant-numeric: tabular-nums; letter-spacing: .06em; }
