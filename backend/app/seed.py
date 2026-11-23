@@ -29,9 +29,9 @@ def seed_demo(db: Session):
     owner = User(name='Частен собственик', email='owner@demo.bg', password_hash=hash_password('Demo12345!'), role='owner')
     db.add_all([staff, owner]); db.flush()
     trees = [
-        Tree(code='STZ-001', name='Централен площад', kind='municipal', owner_id=None, model_code='ST-M8', location='Централна градска зона, Стара Загора', lat=42.4245, lng=25.6232),
-        Tree(code='STZ-002', name='Парк Аязмото', kind='municipal', owner_id=None, model_code='ST-M8', location='Район Аязмото, Стара Загора', lat=42.4433, lng=25.6313),
-        Tree(code='STZ-003', name='Квартал Железник', kind='municipal', owner_id=None, model_code='ST-M8', location='Железник, Стара Загора', lat=42.4300, lng=25.5760),
+        Tree(code='STZ-001', name='Централен площад', kind='municipal', owner_id=staff.id, model_code='ST-M8', location='Централна градска зона, Стара Загора', lat=42.4245, lng=25.6232),
+        Tree(code='STZ-002', name='Парк Аязмото', kind='municipal', owner_id=staff.id, model_code='ST-M8', location='Район Аязмото, Стара Загора', lat=42.4433, lng=25.6313),
+        Tree(code='STZ-003', name='Квартал Железник', kind='municipal', owner_id=staff.id, model_code='ST-M8', location='Железник, Стара Загора', lat=42.4300, lng=25.5760),
         Tree(code='HOME-001', name='Моето соларно дърво', kind='private', owner_id=owner.id, model_code='ST-M6', location='Частен обект', lat=None, lng=None),
     ]
     db.add_all(trees); db.flush()

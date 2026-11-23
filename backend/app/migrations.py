@@ -1,7 +1,20 @@
 """Minimal additive SQLite migration for v0.2 users. Other DBs use Alembic in production."""
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 def upgrade(engine):
+    with engine.begin() as conn:
+        inspector = inspect(conn)
+        if inspector.has_table('device_registrations'):
+            if 'bound_user_id' not in {c['name'] for c in inspector.get_columns('device_registrations')}:
+                conn.execute(text('ALTER TABLE device_registrations ADD COLUMN bound_user_id INTEGER REFERENCES users(id)'))
+            # Completed phone pairings identify the original municipal owner.
+            conn.execute(text("""UPDATE trees SET owner_id = (
+                SELECT min(user_id) FROM mobile_pair_sessions WHERE tree_id=trees.id AND status='completed'
+                HAVING count(DISTINCT user_id)=1)
+                WHERE kind='municipal' AND owner_id IS NULL"""))
+            conn.execute(text("""UPDATE device_registrations SET bound_user_id = (
+                SELECT owner_id FROM trees WHERE trees.id=device_registrations.claimed_tree_id)
+                WHERE bound_user_id IS NULL AND claimed_tree_id IS NOT NULL"""))
     if engine.dialect.name != 'sqlite':
         return
     with engine.begin() as conn:

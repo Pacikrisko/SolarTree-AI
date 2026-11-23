@@ -72,6 +72,7 @@ class DeviceRegistration(Base):
     kind: Mapped[str] = mapped_column(String(20))
     claim_hash: Mapped[str] = mapped_column(String(64))
     telemetry_hash: Mapped[str] = mapped_column(String(64))
+    bound_user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'), nullable=True)
     claimed_tree_id: Mapped[int | None] = mapped_column(ForeignKey('trees.id'), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 

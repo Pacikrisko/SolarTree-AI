@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import select, desc, func
+from sqlalchemy import select, desc, func, update, or_
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from .database import Base, engine, get_db, SessionLocal
 from .models import User, Tree, Reading, Alert, Maintenance, DeviceRegistration, MobilePairSession, DeviceSample
@@ -28,7 +28,7 @@ from .seed import DEMO_MODE, seed_demo
 from .security import hash_password, verify_password, create_token, current_user, require_user
 from .ml import predict_power, detect_anomaly
 from .maintenance import initialize_maintenance, maintenance_for, COMPONENTS
-from .assistant import answer, AssistantAPIError
+from .assistant import answer, account_report, AssistantAPIError
 from .catalog import get_model, MODELS
 from .resource_math import resource_estimate
 from .urban_history import add_demo_urban_history, is_urban_simulator, urban_readings, urban_sample
@@ -78,6 +78,7 @@ class HistoryTurn(BaseModel):
 class ChatIn(BaseModel):
     message: str = Field(min_length=1,max_length=1600)
     tree_id: int | None = None
+    report: Literal['overview','energy','maintenance'] | None = None
     history: list[HistoryTurn] = Field(default_factory=list,max_length=8)
 class PairIn(BaseModel):
     code: str = Field(min_length=3,max_length=40)
@@ -119,15 +120,13 @@ def latest_reading(db: Session, tree: Tree):
 
 
 def can_read(user: User, tree: Tree) -> bool:
-    return (user.role=='municipality' and tree.kind=='municipal') or \
-           (user.role=='owner' and tree.kind=='private' and tree.owner_id==user.id)
+    return tree.owner_id==user.id and tree.kind==('municipal' if user.role=='municipality' else 'private')
 def can_manage(user: User, tree: Tree) -> bool:
     return can_read(user,tree)  # Only advisory UI and service records, NEVER direct plant safety control
 
 def accessible_trees(db: Session, user: User):
-    if user.role == 'municipality':
-        return db.scalars(select(Tree).where(Tree.kind=='municipal').order_by(Tree.id)).all()
-    return db.scalars(select(Tree).where(Tree.kind=='private',Tree.owner_id==user.id).order_by(Tree.id)).all()
+    kind = 'municipal' if user.role=='municipality' else 'private'
+    return db.scalars(select(Tree).where(Tree.owner_id==user.id,Tree.kind==kind).order_by(Tree.id)).all()
 def find_tree(db: Session, tree_id: int, user: User) -> Tree:
     tree = db.get(Tree,tree_id)
     # Return 404 rather than revealing existence of an unauthorized tree.
@@ -170,11 +169,23 @@ def verify_pair(db: Session, code: str, claim: str, user: User) -> DeviceRegistr
     # Identical errors for unrecognized/incorrect keys; never enumerate inventory from user input.
     if not reg or not compare_digest(reg.claim_hash,sha256(claim.encode()).hexdigest()):
         raise HTTPException(status_code=404,detail='Неуспешно сдвояване. Провери QR кода и кода за регистрация.')
-    if reg.claimed_tree_id is not None:
+    if reg.claimed_tree_id is not None or reg.bound_user_id not in (None,user.id):
         raise HTTPException(status_code=409,detail='Това устройство вече е регистрирано.')
     if (user.role=='municipality' and reg.kind!='municipal') or (user.role=='owner' and reg.kind!='private'):
         raise HTTPException(status_code=403,detail='Устройството не принадлежи към този тип профил.')
     return reg
+
+def attach_device(db: Session, reg: DeviceRegistration, user: User, tree: Tree):
+    # Reserve the inventory row before inserting a tree, even for simultaneous claims.
+    reserved=db.execute(update(DeviceRegistration).where(
+        DeviceRegistration.id==reg.id, DeviceRegistration.claimed_tree_id.is_(None),
+        or_(DeviceRegistration.bound_user_id.is_(None),DeviceRegistration.bound_user_id==user.id)
+    ).values(bound_user_id=user.id))
+    if reserved.rowcount!=1:
+        raise HTTPException(status_code=409,detail='Това устройство вече е регистрирано.')
+    db.add(tree)
+    db.flush()
+    reg.claimed_tree_id=tree.id
 
 @app.get('/api/health')
 def health():
@@ -330,14 +341,9 @@ def phone_scan(token:str,data:ScanIn,db:Session=Depends(get_db)):
     except HTTPException:
         session.attempts+=1;db.commit()
         raise
-    tree=Tree(code=reg.code,model_code=reg.model_code,kind=reg.kind,owner_id=user.id if reg.kind=='private' else None,
+    tree=Tree(code=reg.code,model_code=reg.model_code,kind=reg.kind,owner_id=user.id,
               name=get_model(reg.model_code)['name'],location='Добавено чрез QR')
-    db.add(tree);db.flush()
-    from sqlalchemy import update
-    result=db.execute(update(DeviceRegistration).where(DeviceRegistration.id==reg.id,
-              DeviceRegistration.claimed_tree_id.is_(None)).values(claimed_tree_id=tree.id))
-    if result.rowcount!=1:
-        db.rollback();raise HTTPException(status_code=409,detail='Устройството вече е сдвоено.')
+    attach_device(db,reg,user,tree)
     session.status='completed';session.tree_id=tree.id
     if DEMO_MODE and not is_urban_simulator(tree): add_demo_urban_history(db,tree)
     db.commit();initialize_maintenance(db)
@@ -373,16 +379,9 @@ def create_tree(data:TreeIn,db:Session=Depends(get_db),user:User=Depends(logged_
     if db.scalar(select(Tree).where(Tree.code==reg.code)):
         raise HTTPException(status_code=409,detail='Това устройство вече е регистрирано.')
     tree=Tree(name=data.name.strip(),code=reg.code,model_code=reg.model_code,kind=reg.kind,
-              location=data.location.strip(),owner_id=user.id if reg.kind=='private' else None,
+              location=data.location.strip(),owner_id=user.id,
               lat=data.lat,lng=data.lng)
-    db.add(tree);db.flush()
-    # Atomic compare-and-set also protects against racing registration requests.
-    from sqlalchemy import update
-    result=db.execute(update(DeviceRegistration).where(DeviceRegistration.id==reg.id,
-        DeviceRegistration.claimed_tree_id.is_(None)).values(claimed_tree_id=tree.id))
-    if result.rowcount!=1:
-        db.rollback()
-        raise HTTPException(status_code=409,detail='Устройството вече е сдвоено.')
+    attach_device(db,reg,user,tree)
     if DEMO_MODE and not is_urban_simulator(tree): add_demo_urban_history(db,tree)
     db.commit();db.refresh(tree)
     initialize_maintenance(db)
@@ -394,6 +393,7 @@ def remove_tree(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_
         raise HTTPException(status_code=404,detail='Дървото не е намерено в твоя профил.')
     registration=db.scalar(select(DeviceRegistration).where(DeviceRegistration.claimed_tree_id==tree.id))
     if registration:
+        registration.bound_user_id=user.id
         registration.claimed_tree_id=None
     # Keep historical records on an inaccessible installation. A new pairing
     # gets its own ID and history, including when the same owner pairs again.
@@ -589,15 +589,33 @@ def device_ingest(code:str,metrics:ReadingIn,db:Session=Depends(get_db),x_device
     return save_reading(db,tree,metrics,'device')
 @app.post('/api/chat')
 def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
-    tree=None;reading=None;services=[]
-    if data.tree_id is not None:
-        tree=find_tree(db,data.tree_id,user)
-        reading=latest_reading(db,tree)
-        services=maintenance_for(db,tree)
-    if not os.getenv('OPENAI_API_KEY','').strip():
-        raise HTTPException(status_code=503,detail='За свободен AI разговор добави OPENAI_API_KEY в backend/.env и рестартирай сървъра.')
+    focus=find_tree(db,data.tree_id,user) if data.tree_id is not None else None
+    if not data.report and not os.getenv('OPENAI_API_KEY','').strip():
+        raise HTTPException(status_code=503,detail='За свободен разговор настрой OPENAI_API_KEY на сървъра.')
+    devices=[]
+    for tree in ([focus] if focus is not None else accessible_trees(db,user)):
+        device=to_tree(db,tree)
+        device['maintenance']=maintenance_for(db,tree)
+        if not data.report:
+            alerts=db.scalars(select(Alert).where(Alert.tree_id==tree.id).order_by(desc(Alert.id)).limit(10)).all()
+            device['recent_alerts']=[{'message':a.message,'severity':a.severity,'acknowledged':a.acknowledged,
+                                      'time':a.created_at.isoformat()+'Z'} for a in alerts]
+            oxygen=tree_oxygen(tree.id,240,db,user)
+            points=oxygen.pop('points')
+            device['oxygen_history']={**oxygen,'from':points[0]['time'] if points else None,
+                                       'to':points[-1]['time'] if points else None}
+            device['forecast']=tree_forecast(tree.id,db,user)
+            rows=recent_readings(db,tree,96,device['latest']['source']) if device['latest'] else []
+            if rows:
+                device['recent_power']={'from':rows[-1].time.isoformat()+'Z','to':rows[0].time.isoformat()+'Z',
+                                        'samples':len(rows),'min_w':min(r.power_w for r in rows),
+                                        'max_w':max(r.power_w for r in rows),'mean_w':round(sum(r.power_w for r in rows)/len(rows),1)}
+        devices.append(device)
+    if data.report:
+        return {'reply':account_report(data.report,devices),'mode':'report','tree_id':data.tree_id}
+    context={'account':{'name':user.name,'role':user.role},'focus_tree_id':data.tree_id,'trees':devices}
     try:
-        result=answer(data.message,tree,reading,services,[t.model_dump() for t in data.history])
+        result=answer(data.message,context,[t.model_dump() for t in data.history])
     except AssistantAPIError as exc:
         # Categorized provider failure; never reveal API keys or raw response bodies.
         raise HTTPException(status_code=502, detail=str(exc)) from exc

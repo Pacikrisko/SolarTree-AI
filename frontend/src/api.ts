@@ -52,5 +52,5 @@ export const api={
     if(!response.ok)throw new Error('Неуспешно зареждане на медийния файл.')
     return response.blob()
   },
-  chat:(message:string,tree_id:number|null,history:ChatMessage[])=>request<{reply:string;mode:'llm';model:string}>('/chat',{method:'POST',body:JSON.stringify({message,tree_id,history:history.slice(-8)})}),
+  chat:(message:string,tree_id:number|null,history:ChatMessage[],report?:'overview'|'energy'|'maintenance')=>request<{reply:string;mode:'llm'|'report';model?:string}>('/chat',{method:'POST',body:JSON.stringify({message,tree_id,report,history:history.slice(-8).map(turn=>({...turn,content:turn.content.slice(0,1500)}))})}),
 }

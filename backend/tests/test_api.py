@@ -40,7 +40,8 @@ def test_role_isolation_and_automatic_models():
         assert c.post('/api/chat',headers=own,json={'tree_id':city_id,'message':'Hello'}).status_code==404
 
 
-def test_qr_claim_and_permissions():
+def test_qr_claim_and_permissions(monkeypatch):
+    monkeypatch.setenv('PUBLIC_SCANNER_URL','https://scanner.example.test')
     with TestClient(app) as c:
         own=auth(c);city=auth(c,'municipality@demo.bg')
         private=pair('private')
@@ -56,6 +57,9 @@ def test_qr_claim_and_permissions():
         assert c.post('/api/trees',headers=own,json=payload).status_code==409
         assert c.post('/api/pair/resolve',headers=own,json=private).status_code==409
         assert c.get(f'/api/trees/{t["id"]}',headers=city).status_code==404
+        other=c.post('/api/auth/register',json={'name':'Друг собственик','email':'owner2@example.org','password':'SamplePass1234'}).json()
+        second={'Authorization':'Bearer '+other['access_token']}
+        assert c.post('/api/trees',headers=second,json=payload).status_code==409
         url=f'/api/trees/{t["id"]}'
         assert c.delete(url).status_code==401
         assert c.delete(url,headers=city).status_code==404
@@ -63,6 +67,11 @@ def test_qr_claim_and_permissions():
         assert all(row['id']!=t['id'] for row in c.get('/api/trees',headers=own).json())
         assert c.get(url+'/readings',headers=own).status_code==404
         assert c.delete(url,headers=own).status_code==404
+        assert c.post('/api/pair/resolve',headers=second,json=private).status_code==409
+        assert c.post('/api/trees',headers=second,json=payload).status_code==409
+        phone=c.post('/api/pair-sessions',headers=second).json()['url'].split('/')[-1]
+        scan='STREE1|'+private['code']+'|'+private['claim_token']
+        assert c.post('/api/scan/'+phone,json={'payload':scan}).status_code==409
         again=c.post('/api/trees',headers=own,json=payload)
         assert again.status_code==201 and again.json()['id']!=t['id']
         # municipal QR can only be claimed from municipality account
@@ -294,3 +303,29 @@ def test_urban_simulation_minute_updates_and_day_night_cycle():
     assert night.power_w == night.electrolyzer_power_w == night.oxygen_flow_lph == 0
     assert gas_day['hydrogen_flow_nlph'] == 2 * day.oxygen_flow_lph
     assert gas_night['fuel_cell_load_kw'] > 0 and 0 < night.water_pct < day.water_pct <= 100
+
+
+def test_assistant_only_receives_authenticated_inventory(monkeypatch):
+    with TestClient(app) as c:
+        empty=c.post('/api/auth/register',json={'name':'Празен профил','email':'empty@example.org','password':'SamplePass1234'}).json()
+        headers={'Authorization':'Bearer '+empty['access_token']}
+        city=auth(c,'municipality@demo.bg')
+        tree=c.get('/api/trees',headers=city).json()[0]
+        assert c.post('/api/chat',json={'message':'Справка','report':'overview'}).status_code==401
+        report=c.post('/api/chat',headers=city,json={'message':'Справка','report':'overview'})
+        assert tree['code'] in report.json()['reply']
+        assert c.post('/api/chat',headers=headers,json={'message':'Справка','report':'energy','tree_id':tree['id']}).status_code==404
+        calls=[]
+        def fake_answer(message,context,history):
+            calls.append(context)
+            return {'reply':'OK','mode':'llm','model':'test'}
+        monkeypatch.setenv('OPENAI_API_KEY','test-only')
+        monkeypatch.setattr('app.main.answer',fake_answer)
+        assert c.post('/api/chat',headers=headers,json={'message':'Всички дървета'}).status_code==200
+        assert calls[-1]['trees']==[]
+        assert c.post('/api/chat',headers=headers,json={'message':'Детайли','tree_id':tree['id']}).status_code==404
+        assert len(calls)==1
+        assert c.post('/api/chat',headers=city,json={'message':'Детайли','tree_id':tree['id']}).status_code==200
+        devices=calls[-1]['trees']
+        assert [d['id'] for d in devices]==[tree['id']]
+        assert devices[0]['maintenance'] and devices[0]['forecast']['points']
