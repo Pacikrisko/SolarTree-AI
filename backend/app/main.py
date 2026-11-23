@@ -31,7 +31,7 @@ from .maintenance import initialize_maintenance, maintenance_for, COMPONENTS
 from .assistant import answer, AssistantAPIError
 from .catalog import get_model, MODELS
 from .resource_math import resource_estimate
-from .urban_history import add_demo_urban_history
+from .urban_history import add_demo_urban_history, is_urban_simulator, urban_readings, urban_sample
 from .migrations import upgrade
 from .media import save_media, safe_media_path
 from .model_media import find_model_media, media_kind
@@ -103,8 +103,21 @@ def to_reading(reading: Reading):
             'water_pct':reading.water_pct,'source':reading.source,
             'electrolyzer_power_w':reading.electrolyzer_power_w,
             'oxygen_flow_lph':reading.oxygen_flow_lph,'oxygen_basis':reading.oxygen_basis}
-def latest_reading(db: Session, tree_id: int):
-    return db.scalars(select(Reading).where(Reading.tree_id==tree_id).order_by(desc(Reading.time)).limit(1)).first()
+def recent_readings(db: Session, tree: Tree, limit: int, source: str | None = None):
+    if is_urban_simulator(tree):
+        return urban_readings(tree, limit) if source in (None, 'simulation') else []
+    query = select(Reading).where(Reading.tree_id == tree.id)
+    if source is not None:
+        query = query.where(Reading.source == source)
+    return db.scalars(query.order_by(desc(Reading.time)).limit(limit)).all()
+
+
+def latest_reading(db: Session, tree: Tree):
+    rows = recent_readings(db, tree, 1)
+    return rows[0] if rows else None
+
+
+
 def can_read(user: User, tree: Tree) -> bool:
     return (user.role=='municipality' and tree.kind=='municipal') or \
            (user.role=='owner' and tree.kind=='private' and tree.owner_id==user.id)
@@ -123,9 +136,14 @@ def find_tree(db: Session, tree_id: int, user: User) -> Tree:
     return tree
 
 def to_tree(db: Session, tree: Tree):
-    last=latest_reading(db,tree.id)
-    sensor=db.scalar(select(DeviceSample).where(DeviceSample.tree_id==tree.id).order_by(desc(DeviceSample.time)).limit(1))
     now=datetime.now(timezone.utc).replace(tzinfo=None)
+    operating = None
+    sensor = None
+    if is_urban_simulator(tree):
+        last, operating = urban_sample(tree, now.replace(second=0, microsecond=0))
+    else:
+        last = latest_reading(db, tree)
+        sensor = db.scalar(select(DeviceSample).where(DeviceSample.tree_id==tree.id).order_by(desc(DeviceSample.time)).limit(1))
     device_fresh=bool((last and last.source=='device' and (now-last.time).total_seconds()<900)
                    or (sensor and (now-sensor.time).total_seconds()<300))
     open_alerts=db.scalar(select(func.count()).select_from(Alert).where(Alert.tree_id==tree.id,Alert.acknowledged.is_(False))) or 0
@@ -133,7 +151,8 @@ def to_tree(db: Session, tree: Tree):
     return {'id':tree.id,'code':tree.code,'name':tree.name,'kind':tree.kind,
             'model':get_model(tree.model_code),
             'location':tree.location,'lat':tree.lat,'lng':tree.lng,
-            'latest':to_reading(last) if last else None,'open_alerts':open_alerts,
+            'latest':to_reading(last) if last else None,
+            'simulation':operating, 'open_alerts':open_alerts,
             'media_kind': media_kind(tree.model_code),
             'service_attention':sum(s['status']!='ok' for s in services),
             'latest_sensors':({
@@ -320,7 +339,7 @@ def phone_scan(token:str,data:ScanIn,db:Session=Depends(get_db)):
     if result.rowcount!=1:
         db.rollback();raise HTTPException(status_code=409,detail='Устройството вече е сдвоено.')
     session.status='completed';session.tree_id=tree.id
-    if DEMO_MODE: add_demo_urban_history(db,tree)
+    if DEMO_MODE and not is_urban_simulator(tree): add_demo_urban_history(db,tree)
     db.commit();initialize_maintenance(db)
     return {'ok':True,'name':tree.name,'model':get_model(tree.model_code)['name']}
 
@@ -364,7 +383,7 @@ def create_tree(data:TreeIn,db:Session=Depends(get_db),user:User=Depends(logged_
     if result.rowcount!=1:
         db.rollback()
         raise HTTPException(status_code=409,detail='Устройството вече е сдвоено.')
-    if DEMO_MODE: add_demo_urban_history(db,tree)
+    if DEMO_MODE and not is_urban_simulator(tree): add_demo_urban_history(db,tree)
     db.commit();db.refresh(tree)
     initialize_maintenance(db)
     return to_tree(db,tree)
@@ -395,18 +414,17 @@ def locked_tree_media(tree_id:int,db:Session=Depends(get_db),user:User=Depends(l
 def tree_readings(tree_id:int,limit:int=120,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     tree=find_tree(db,tree_id,user)
     limit=max(1,min(limit,500))
-    rows=db.scalars(select(Reading).where(Reading.tree_id==tree.id).order_by(desc(Reading.time)).limit(limit)).all()
+    rows=recent_readings(db,tree,limit)
     return [to_reading(r) for r in reversed(rows)]
 @app.get('/api/trees/{tree_id}/oxygen')
 def tree_oxygen(tree_id:int,limit:int=240,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     tree=find_tree(db,tree_id,user)
-    last=latest_reading(db,tree.id)
+    last=latest_reading(db,tree)
     # Keep virtual history and device telemetry separate; never report a mixed total as measured.
     if last is None:
         return {'tree_id':tree.id,'points':[],'total_l':0,'current_flow_lph':None,
                 'basis':'unavailable','note':'Няма налични измервания.'}
-    rows=list(reversed(db.scalars(select(Reading).where(Reading.tree_id==tree.id, Reading.source==last.source)
-                           .order_by(desc(Reading.time)).limit(max(2,min(limit,500)))).all()))
+    rows=list(reversed(recent_readings(db,tree,max(2,min(limit,500)),last.source)))
     points=[]; total=0.0; prev=None
     for r in rows:
         if r.oxygen_flow_lph is None:
@@ -422,16 +440,15 @@ def tree_oxygen(tree_id:int,limit:int=240,db:Session=Depends(get_db),user:User=D
     return {'tree_id':tree.id,'points':points,'total_l':round(total,2),
             'current_flow_lph':round(points[-1]['oxygen_flow_lph'],2) if points else None,
             'basis':points[-1]['basis'] if points else 'unavailable',
-            'note':'Обемът е изчислен от наличните измервания за показания период; празните интервали не се запълват.'}
+            'note':'Натрупаният обем е изчислен от симулирания дебит за показания период.' if is_urban_simulator(tree) else 'Обемът е изчислен от наличните измервания за показания период; празните интервали не се запълват.'}
 
 @app.get('/api/trees/{tree_id}/forecast')
 def tree_forecast(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     tree=find_tree(db,tree_id,user)
-    latest=latest_reading(db,tree.id)
+    latest=latest_reading(db,tree)
     if latest is None:
         return predict_power([])
-    rows=db.scalars(select(Reading).where(Reading.tree_id==tree.id,Reading.source==latest.source)
-                    .order_by(desc(Reading.time)).limit(120)).all()
+    rows=recent_readings(db,tree,120,latest.source)
     return predict_power(list(reversed(rows)))
 @app.get('/api/trees/{tree_id}/maintenance')
 def tree_maintenance(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
@@ -501,6 +518,8 @@ def simulate(tree_id:int,data:SimIn,db:Session=Depends(get_db),user:User=Depends
     if not DEMO_MODE:
         raise HTTPException(status_code=403,detail='Режимът за сценарии е изключен.')
     tree=find_tree(db,tree_id,user)
+    if is_urban_simulator(tree):
+        raise HTTPException(status_code=409,detail='Този тестов Urban 2K има автоматична симулация.')
     if data.mode=='anomaly':
         metrics=ReadingIn(power_w=0,temperature_c=68,humidity_pct=10,h2_sensor_value=6.7,water_pct=2,
                           oxygen_flow_lph=0,electrolyzer_power_w=0)
@@ -508,7 +527,7 @@ def simulate(tree_id:int,data:SimIn,db:Session=Depends(get_db),user:User=Depends
         import math
         now=datetime.now(timezone.utc)
         sun=max(0,math.sin(math.pi*(now.hour+now.minute/60-6)/13)) if 6<=now.hour<=19 else 0
-        old=latest_reading(db,tree.id)
+        old=latest_reading(db,tree)
         metrics=ReadingIn(power_w=round(max(0,sun*1300+random.uniform(-40,40)),1),
                 temperature_c=round(20+sun*8,1),humidity_pct=round(51-13*sun,1),
                 h2_sensor_value=0.1,water_pct=max(0,round((old.water_pct if old else 85)-.1,1)),
@@ -527,6 +546,8 @@ def device_sensors(code:str,metrics:SensorIn,db:Session=Depends(get_db),x_device
     digest=sha256((x_device_key or '').encode()).hexdigest()
     if not(reg and x_device_key and compare_digest(reg.telemetry_hash,digest) and reg.claimed_tree_id==tree.id):
         raise HTTPException(status_code=401,detail='Устройството не е удостоверено.')
+    if is_urban_simulator(tree):
+        raise HTTPException(status_code=409,detail='Този сериен номер е за виртуалния Urban 2K.')
     if not any(v is not None for v in metrics.model_dump().values()):
         raise HTTPException(status_code=422,detail='Липсват измервания от датчици.')
     sample=DeviceSample(tree_id=tree.id,**metrics.model_dump())
@@ -547,13 +568,15 @@ def device_ingest(code:str,metrics:ReadingIn,db:Session=Depends(get_db),x_device
     legacy_ok=bool(DEMO_MODE and legacy and x_device_key and compare_digest(legacy,x_device_key))
     if not (per_device_ok or legacy_ok):
         raise HTTPException(status_code=401,detail='Устройството не е удостоверено.')
+    if is_urban_simulator(tree):
+        raise HTTPException(status_code=409,detail='Този сериен номер е за виртуалния Urban 2K.')
     return save_reading(db,tree,metrics,'device')
 @app.post('/api/chat')
 def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     tree=None;reading=None;services=[]
     if data.tree_id is not None:
         tree=find_tree(db,data.tree_id,user)
-        reading=latest_reading(db,tree.id)
+        reading=latest_reading(db,tree)
         services=maintenance_for(db,tree)
     if not os.getenv('OPENAI_API_KEY','').strip():
         raise HTTPException(status_code=503,detail='За свободен AI разговор добави OPENAI_API_KEY в backend/.env и рестартирай сървъра.')

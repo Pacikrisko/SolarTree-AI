@@ -177,12 +177,14 @@ def test_mobile_phone_pairing_and_real_pico_sensors(monkeypatch):
         assert tree['latest'] is None  # no invented power or O2 readings
 
 
-def test_urban_qr_only_and_resource_calculator():
+def test_urban_qr_only_and_resource_calculator(monkeypatch):
     from app.resource_math import resource_estimate
     with TestClient(app) as c:
         try: own=auth(c,'owner@demo.bg','AsecurePassword2026')
         except AssertionError: own=auth(c,'owner@demo.bg','Demo12345!')
         city=auth(c,'municipality@demo.bg')
+        # Switch off all global demo actions before pairing this reserved serial.
+        monkeypatch.setattr('app.main.DEMO_MODE', False)
         assert c.post('/api/examples/urban',headers=own).status_code==404
         r=c.post('/api/pair/resolve',headers=own,json={
             'code':'URBAN-TREE-0001','claim_token':'URBAN-2KW-PAIR-2026'})
@@ -197,7 +199,22 @@ def test_urban_qr_only_and_resource_calculator():
         assert r.status_code==201,r.text
         tid=r.json()['id']
         assert r.json()['latest']['source']=='simulation'
-        assert len(c.get(f'/api/trees/{tid}/readings',headers=own).json())==96
+        detail = c.get(f'/api/trees/{tid}',headers=own).json()
+        assert detail['connection']=='model' and detail['latest_sensors'] is None
+        operating = detail['simulation']
+        assert 0 < operating['hydrogen_pressure_bar_g'] < 500 and 0 < operating['fuel_cell_load_kw'] <= 1
+        history = c.get(f'/api/trees/{tid}/readings',headers=own).json()
+        assert len(history)==96 and all(r['source']=='simulation' for r in history)
+        assert history==sorted(history, key=lambda row:row['time'])
+        assert all(r['electrolyzer_power_w'] is not None for r in history)
+        assert c.get(f'/api/trees/{tid}/forecast',headers=own).json()['synthetic_data']
+        assert c.get(f'/api/trees/{tid}/readings',headers=city).status_code==404
+        assert c.post(f'/api/trees/{tid}/simulate',headers=own,json={'mode':'normal'}).status_code==403
+        with_params = c.get(f'/api/trees/{tid}/resources',headers=own,params={
+            'water_fill_pct':detail['latest']['water_pct'],
+            'pressure_bar_g':operating['hydrogen_pressure_bar_g'],
+            'fuel_cell_load_kw':operating['fuel_cell_load_kw']}).json()
+        assert with_params['hydrogen_runtime_hours'] > 0 and with_params['water_runtime_hours'] > 0
         assert c.get(f'/api/trees/{tid}/oxygen',headers=own).json()['basis']=='simulation'
         assert c.post('/api/trees',headers=own,json={
             'code':'URBAN-TREE-0001','claim_token':'URBAN-2KW-PAIR-2026',
@@ -245,3 +262,26 @@ def test_new_account_registration_and_duplicate_email():
         assert client.get('/api/auth/me', headers=auth).status_code == 200
         assert client.post('/api/auth/register', json=payload).status_code == 409
         assert client.post('/api/auth/register', json={**payload, 'email': 'not-an-email'}).status_code == 422
+
+
+def test_urban_simulation_minute_updates_and_day_night_cycle():
+    from datetime import datetime, timedelta
+    from app.models import Tree
+    from app.urban_history import is_urban_simulator, urban_readings, urban_sample
+
+    tree = Tree(id=9, code='URBAN-TREE-0001', model_code='ST-URBAN-2KW')
+    assert is_urban_simulator(tree)
+    for code, model in [('IVAN-TREE-0001', 'ST-IVAN-P1'), ('OTHER-2K', 'ST-URBAN-2KW')]:
+        assert not is_urban_simulator(Tree(code=code, model_code=model))
+    morning = datetime(2026, 11, 23, 8, 0)
+    rows = urban_readings(tree, 96, morning)
+    next_rows = urban_readings(tree, 96, morning + timedelta(minutes=1))
+    assert next_rows[1].time == rows[0].time
+    assert next_rows[1].power_w == rows[0].power_w
+    assert next_rows[0].power_w > rows[0].power_w
+    day, gas_day = urban_sample(tree, morning + timedelta(hours=3))
+    night, gas_night = urban_sample(tree, morning + timedelta(hours=15))
+    assert 0 < day.electrolyzer_power_w <= 2000 and day.electrolyzer_power_w <= day.power_w <= 3200
+    assert night.power_w == night.electrolyzer_power_w == night.oxygen_flow_lph == 0
+    assert gas_day['hydrogen_flow_nlph'] == 2 * day.oxygen_flow_lph
+    assert gas_night['fuel_cell_load_kw'] > 0 and 0 < night.water_pct < day.water_pct <= 100
