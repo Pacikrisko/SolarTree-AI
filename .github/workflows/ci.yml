@@ -1,0 +1,38 @@
+name: Test SolarTree AI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+      - name: Run API tests with isolated SQLite
+        run: PYTHONPATH=. pytest -q
+        env:
+          DEMO_MODE: 'true'
+          DATABASE_URL: sqlite:///./ci_solartree.db
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install JavaScript dependencies
+        run: npm install --no-audit --no-fund
+      - name: Typecheck and build React
+        run: npm run build

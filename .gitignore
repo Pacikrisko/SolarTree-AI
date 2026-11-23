@@ -1,0 +1,25 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+.venv/
+node_modules/
+dist/
+backend/.env
+backend/*.db
+backend/*.db-*
+frontend/.env.local
+.DS_Store
+.vscode/settings.json
+backend/user_media/
+
+# Never commit production secrets and databases
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+*.pem
+__pypackages__/

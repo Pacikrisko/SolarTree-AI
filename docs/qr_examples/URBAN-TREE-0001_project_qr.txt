@@ -1,0 +1,2 @@
+TEST ONLY – not a serial for a manufactured full-size device.
+STREE1|URBAN-TREE-0001|URBAN-2KW-PAIR-2026

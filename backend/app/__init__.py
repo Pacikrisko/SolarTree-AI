@@ -1,0 +1,1 @@
+"""SolarTree AI demonstration backend."""

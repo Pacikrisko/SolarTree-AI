@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 580">
+<defs>
+<linearGradient id="sky" x1="0" x2="1" y2="1"><stop stop-color="#e6f2ec"/><stop offset="1" stop-color="#c8e2d8"/></linearGradient>
+<linearGradient id="metal" x1="0" x2="1"><stop stop-color="#2f756e"/><stop offset="0.55" stop-color="#43a69b"/><stop offset="1" stop-color="#165e5b"/></linearGradient>
+<linearGradient id="pv" x1="0" x2="1" y2="1"><stop stop-color="#163c49"/><stop offset="1" stop-color="#071b2c"/></linearGradient>
+<pattern id="cells" width="34" height="33" patternUnits="userSpaceOnUse"><path d="M0 0H34V33H0Z" fill="none" stroke="#69a7b8" stroke-opacity=".4" stroke-width="1.6"/></pattern>
+</defs>
+<rect width="900" height="580" fill="url(#sky)"/>
+<circle cx="650" cy="150" r="175" fill="#fff" opacity=".3"/>
+<ellipse cx="432" cy="529" rx="295" ry="23" fill="#27594b" opacity=".1"/>
+<g fill="none" stroke="url(#metal)" stroke-width="29" stroke-linejoin="round" stroke-linecap="round">
+<path d="M431 506V209M430 265L225 149M433 240L621 137M434 290L590 235M433 292L293 236M431 205L426 110"/>
+</g>
+<path d="M365 474h135l-17 65H382Z" fill="#185a55"/><rect x="390" y="400" width="83" height="34" rx="9" fill="#eafef1" opacity=".88"/>
+<g stroke="#7badae" stroke-width="6" stroke-linejoin="round">
+<g transform="translate(130 82) rotate(-18 120 65)"><rect width="240" height="130" rx="10" fill="url(#pv)"/><rect width="240" height="130" rx="10" fill="url(#cells)"/></g>
+<g transform="translate(535 76) rotate(12 130 60)"><rect width="255" height="125" rx="10" fill="url(#pv)"/><rect width="255" height="125" rx="10" fill="url(#cells)"/></g>
+<g transform="translate(150 228) rotate(-16 100 50)"><rect width="210" height="100" rx="8" fill="url(#pv)"/><rect width="210" height="100" rx="8" fill="url(#cells)"/></g>
+<g transform="translate(575 229) rotate(18 90 50)"><rect width="195" height="102" rx="8" fill="url(#pv)"/><rect width="195" height="102" rx="8" fill="url(#cells)"/></g>
+</g>
+<g font-family="Arial,sans-serif" text-anchor="start"><text x="42" y="496" font-size="17" fill="#376960" font-weight="bold" letter-spacing="3">SOLARTREE URBAN</text><text x="42" y="526" font-size="32" fill="#173f38" font-weight="bold">2K</text></g>
+</svg>

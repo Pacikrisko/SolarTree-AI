@@ -1,0 +1,5 @@
+SolarTree Prototype P1
+Device code: IVAN-TREE-0001
+Model code: ST-IVAN-P1
+Claim token: IVAN-PROTOTYPE-PAIR-2026
+QR payload: STREE1|IVAN-TREE-0001|IVAN-PROTOTYPE-PAIR-2026
