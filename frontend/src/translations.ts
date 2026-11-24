@@ -459,6 +459,7 @@ export const english:Record<string,string> = {
   "Облачният AI очаква настройка на сървъра.": "Cloud AI requires server configuration.",
   "Тази заявка вече е използвана.": "This request has already been used.",
   "Влизаш в SolarTree с Google.": "You sign in to SolarTree with Google.",
+  "или": "or",
   "Google не се зареди.": "Google sign-in did not load.",
   "Свържи профила си с Google": "Link your account to Google",
   "За да запазиш дърветата и разговорите си, потвърди паролата си за SolarTree.": "Confirm your SolarTree password to keep your trees and conversations in this account.",

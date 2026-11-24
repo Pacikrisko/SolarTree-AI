@@ -245,6 +245,39 @@
   .signin-switch { margin-top: 19px; padding-top: 8px; }
 }
 
-.google-signin:not([hidden]) { display:grid; justify-content:start; margin-top:20px; }
-.google-signin button { color:var(--signin-link); text-decoration:underline; background:transparent; }
-.google-signin[inert] { opacity:.65; }
+.google-signin:not([hidden]) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 22px;
+}
+.google-signin-widget {
+  width: 100%;
+  max-width: 400px;
+  min-height: 40px;
+  justify-self: center;
+  contain: inline-size;
+  border-radius: 999px;
+  /* Let the Google iframe paint its own theme on a transparent canvas. */
+  color-scheme: only light;
+}
+:root[data-theme='dark'] .google-signin-widget {
+  box-shadow: 0 0 0 1px var(--signin-border);
+}
+.google-signin-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--signin-muted);
+  font-size: 12px;
+  line-height: 1.3;
+}
+.google-signin-divider::before, .google-signin-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--signin-border) 70%, transparent);
+}
+.google-signin:not([hidden]) + .signin-form { margin-top: 14px; }
+.google-signin button { color: var(--signin-link); text-decoration: underline; background: transparent; }
+.google-signin[inert] { opacity: .65; }
