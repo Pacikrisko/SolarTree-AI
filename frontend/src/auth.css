@@ -221,14 +221,10 @@
 .signin-input, .signin-submit { border-radius: 12px; }
 .signin-submit { min-height: 52px; }
 @media (prefers-reduced-motion: no-preference) {
-  .signin-art { animation: signin-photo .85s ease-out both; }
-  .signin-panel { animation: signin-arrive .45s ease-out both; }
-  .signin-content header { animation: signin-arrive .28s ease-out both; }
+  .signin-panel { animation: solar-surface-in .28s ease-out backwards; }
   .signin-submit svg { transition: transform .18s ease; }
   .signin-submit:hover:not(:disabled) svg { transform: translateX(3px); }
 }
-@keyframes signin-photo { from { transform: scale(1.035); } to { transform: scale(1); } }
-@keyframes signin-arrive { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 740px) {
   .signin { padding: 14px; }
   .signin-card { width: min(100%, 500px); grid-template-columns: minmax(0,1fr); gap: 12px; }

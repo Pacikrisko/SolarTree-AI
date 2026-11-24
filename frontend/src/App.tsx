@@ -1,4 +1,3 @@
-import {flushSync} from 'react-dom'
 import {Button, Card, IconButton as RadixIconButton, Theme} from '@radix-ui/themes'
 import {LanguageButton,useLanguage} from './LanguageButton'
 import {tr,getLanguage,locale} from './language'
@@ -101,12 +100,7 @@ export default function App(){
   const [theme,setTheme]=useState<'dark'|'light'>(()=>localStorage.getItem('solartree_theme')==='dark'?'dark':'light')
   useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('solartree_theme',theme)},[theme])
   function toggleTheme(){
-    const apply = () => setTheme(current => current === 'dark' ? 'light' : 'dark')
-    if (!document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      apply()
-      return
-    }
-    document.startViewTransition(() => flushSync(apply))
+    setTheme(current => current === 'dark' ? 'light' : 'dark')
   }
   const [session,setSession]=useState(0)
   const endSession=useCallback(()=>{ setAuthToken(''); setSession(previous=>previous+1) },[])

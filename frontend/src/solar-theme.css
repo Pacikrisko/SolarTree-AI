@@ -109,27 +109,6 @@
   .solar-theme .mobile-nav {background:var(--app-surface);box-shadow:var(--shadow-3)}
   .solar-theme .mobile-nav button.active {background:var(--app-tint);color:var(--app-accent);border-radius:var(--radius-3)}
 }
-@media(prefers-reduced-motion:no-preference){
-  .solar-theme .page-body {animation:solar-arrive 280ms var(--ease-out) backwards}
-  .solar-theme .dashboard .stat-card {animation:solar-arrive 360ms var(--ease-out) backwards}
-  .solar-theme .dashboard .stat-card:nth-child(2) {animation-delay:40ms}
-  .solar-theme .dashboard .stat-card:nth-child(3) {animation-delay:80ms}
-  .solar-theme .dashboard .stat-card:nth-child(4) {animation-delay:120ms}
-  .solar-theme .modal-backdrop {animation:solar-fade 150ms ease-out}
-  .solar-theme .modal,.solar-theme .notification-pop {animation:solar-pop 220ms var(--ease-out)}
-  .solar-theme .thread-list:not([hidden]) {animation:solar-slide 210ms var(--ease-out)}
-  .solar-theme .chat-bubble:last-child,.solar-theme .chat-bubble:has(+ div:empty:last-child) {animation:solar-arrive 190ms var(--ease-out)}
-  .solar-theme .rt-Button,.solar-theme .rt-IconButton {transition:transform 150ms var(--ease-out),box-shadow 150ms ease-out}
-  .solar-theme :is(.rt-Button,.rt-IconButton,.btn):active:not(:disabled) {transform:scale(.97)}
-  @media(hover:hover){
-    .solar-theme .rt-Button:hover:not(:disabled),.solar-theme .rt-IconButton:hover:not(:disabled) {box-shadow:var(--shadow-3)}
-  }
-}
-@keyframes solar-arrive {from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-@keyframes solar-fade {from{opacity:0}to{opacity:1}}
-@keyframes solar-pop {from{opacity:0;transform:translateY(6px) scale(.975)}to{opacity:1;transform:none}}
-@keyframes solar-slide {from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
-
 /* Shared theme surfaces, including secondary screens and empty states. */
 .solar-theme {color-scheme:light}
 .solar-theme.dark {color-scheme:dark}
@@ -157,43 +136,15 @@
 .solar-theme .stat-icon.blue {--icon-ink:var(--cool-ink)}
 .solar-theme .stat-icon.purple {--icon-ink:var(--violet-ink)}
 .solar-theme .stat-icon.orange {--icon-ink:var(--warm-ink)}
-.solar-theme.light .dashboard .welcome-row {background:#e4efdf;border-color:var(--app-edge)}
-.solar-theme.light .dashboard .welcome-row::before {background-image:linear-gradient(90deg,#e4efdf,#e4efdfbd 36%,transparent 83%),url('/solar-concept.jpg')}
+@property --solar-hero-base {syntax:'<color>';inherits:true;initial-value:#102d23}
+.solar-theme .dashboard .welcome-row {--solar-hero-base:#102d23;background:var(--solar-hero-base)}
+.solar-theme.light .dashboard .welcome-row {--solar-hero-base:#e4efdf;border-color:var(--app-edge)}
+.solar-theme .dashboard .welcome-row::before {background-image:linear-gradient(90deg,var(--solar-hero-base),color-mix(in srgb,var(--solar-hero-base) 70%,transparent) 34%,transparent 82%),url('/solar-concept.jpg')}
 .solar-theme.light .dashboard .welcome-row :is(h2,.eyebrow,.welcome-dot) {color:#193e2b}
 .solar-theme.light .dashboard .welcome-row p {color:#344d3d}
 .solar-theme.light .dashboard .welcome-row .btn {background:var(--app-accent);color:var(--on-accent);border-color:var(--app-accent)}
 @media(max-width:640px){
-  .solar-theme.light .dashboard .welcome-row::before {background-image:linear-gradient(90deg,#e4efdf 4%,#e4efdfeb 48%,#e4efdf50),url('/solar-concept.jpg')}
-}
-
-/* A compositor fade also covers gradients, charts and icons in the same frame. */
-@media(prefers-reduced-motion:no-preference){
-  ::view-transition-old(root) {animation:none;mix-blend-mode:normal}
-  ::view-transition-new(root) {animation:solar-fade 300ms cubic-bezier(.25,.6,.32,1) both;mix-blend-mode:normal}
-  ::view-transition {pointer-events:none}
-  .solar-theme :is(.btn,.rt-Button,.rt-IconButton,.icon-btn,.theme-switch,.language-switch,.prompt-chips button,
-  .thread-choice,.thread-delete,.thread-clear,.side-nav button,.mobile-nav button,.tree-card,.featured-open,.device-row,
-  .attention-list button,.profile-launch,.signin-switch button,.text-link) {
-    transition:transform 190ms var(--ease-out),box-shadow 190ms ease-out,background-color 180ms ease-out,color 180ms ease-out,border-color 180ms ease-out;
-  }
-  @media(hover:hover) and (pointer:fine){
-    .solar-theme :is(.btn,.rt-Button,.rt-IconButton,.theme-switch,.language-switch,.prompt-chips button,.featured-open):hover:not(:disabled) {
-      transform:translateY(-2px);box-shadow:var(--shadow-3);
-    }
-    .solar-theme .tree-card:hover {transform:translateY(-3px);box-shadow:var(--shadow-3)}
-    .solar-theme :is(.thread-choice,.device-row,.attention-list button,.profile-launch):hover:not(:disabled) {background-color:var(--app-tint);transform:translateX(2px)}
-    .solar-theme :is(.thread-delete,.thread-clear,.text-link):hover:not(:disabled) {color:var(--app-accent)}
-    .solar-theme .mobile-nav button:hover:not(.active) {background:var(--app-tint)}
-  }
-  @supports not selector(::view-transition-new(root)) {
-    .solar-theme :is(.main-area,.topbar,.sidebar,.panel,.stat-card,.thread-list,.chat-stream,.modal,.mobile-nav) {
-      transition:background-color 240ms ease-out,color 240ms ease-out,border-color 240ms ease-out;
-    }
-  }
-}
-@media(prefers-reduced-motion:reduce){
-  .solar-theme :is(button,.tree-card,.resource-card):hover {transform:none}
-  ::view-transition-group(root),::view-transition-old(root),::view-transition-new(root) {animation:none}
+  .solar-theme .dashboard .welcome-row::before {background-image:linear-gradient(90deg,var(--solar-hero-base) 4%,color-mix(in srgb,var(--solar-hero-base) 92%,transparent) 48%,color-mix(in srgb,var(--solar-hero-base) 30%,transparent)),url('/solar-concept.jpg')}
 }
 
 .solar-theme :is(.service-item-icon,.service-kpi-icon,.notif-icon,.alert-glyph,.attention-icon,
@@ -212,7 +163,38 @@
 .solar-theme .service-state.danger {color:var(--red)}
 .solar-theme :is(.pair-scanner,.quick-buttons button) {background:var(--app-surface);color:var(--app-text);border-color:var(--app-edge)}
 .solar-theme .resource-card {background:var(--app-surface);border-color:var(--app-edge)}
-@media(hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference){
-  .solar-theme .dashboard .stat-card {transition:transform 220ms var(--ease-out),box-shadow 220ms ease-out}
-  .solar-theme .dashboard .stat-card:hover {transform:translateY(-2px);box-shadow:var(--shadow-3)}
+
+/* Keep text and hit areas on their original pixels. Only small graphic accents travel. */
+@keyframes solar-surface-in {from {opacity:.72} to {opacity:1}}
+@keyframes solar-list-in {from {clip-path:inset(0 100% 0 0 round 15px)} to {clip-path:inset(0 0 0 0 round 15px)}}
+@media(prefers-reduced-motion:no-preference){
+  .solar-theme {--surface-time:260ms;--motion-ease:cubic-bezier(.25,.1,.25,1)}
+  .solar-theme :is(.main-area,.topbar,.sidebar,.panel,.stat-card,.thread-list,.chat-stream,.chat-input-area,
+    .modal,.mobile-nav,.notification-pop,.thread-row,.resource-card,.tree-card,button,input,select,textarea) {
+    transition-property:background-color,border-color,color,box-shadow;
+    transition-duration:var(--surface-time);
+    transition-timing-function:var(--motion-ease);
+  }
+  .solar-theme .dashboard .welcome-row {transition:--solar-hero-base 300ms ease-in-out}
+  .solar-theme .dashboard .welcome-row :is(h2,p,.eyebrow,.welcome-dot) {transition:color 300ms ease-in-out}
+  .solar-theme .page-body>.section-heading,.solar-theme .modal,.solar-theme .notification-pop,
+  .solar-theme .chat-bubble:has(+ div:empty:last-child) {animation:solar-surface-in 260ms ease-out backwards}
+  .solar-theme .thread-list:not([hidden]) {animation:solar-list-in 290ms var(--motion-ease) backwards}
+  .solar-theme :is(.tree-card-arrow svg,.featured-open svg,.text-link svg,.side-nav button>svg,.signin-submit svg) {
+    transition:transform 280ms var(--motion-ease);
+  }
+  @media(hover:hover) and (pointer:fine){
+    .solar-theme :is(.btn,.rt-Button,.rt-IconButton,.icon-btn,.theme-switch,.language-switch,.prompt-chips button,.tree-card,.featured-open):hover:not(:disabled),
+    .solar-theme .dashboard .stat-card:hover {border-color:var(--app-accent);box-shadow:var(--shadow-3)}
+    .solar-theme :is(.thread-choice,.device-row,.attention-list button,.profile-launch,.mobile-nav button:not(.active)):hover:not(:disabled) {
+      background-color:var(--app-tint)
+    }
+    .solar-theme :is(.thread-delete,.thread-clear,.text-link):hover:not(:disabled) {color:var(--app-accent)}
+    .solar-theme .tree-card:hover .tree-card-arrow svg,.solar-theme .text-link:hover svg,
+    .solar-theme .side-nav button:hover>svg,.solar-theme .signin-submit:hover:not(:disabled) svg {transform:translateX(4px)}
+    .solar-theme .featured-open:hover svg {transform:translate(3px,-3px)}
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .solar-theme :is(button,.tree-card,.resource-card):hover {transform:none}
 }
