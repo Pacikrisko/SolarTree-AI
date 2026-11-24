@@ -1,19 +1,19 @@
 <!doctype html>
 <html lang="bg"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'">
-<title>SolarTree � ????????? ?? Pico</title>
+<title>SolarTree · Настройка на Pico</title>
 <style>
 :root{color-scheme:light dark;--bg:#eef4f0;--card:#fff;--text:#132d25;--muted:#455f54;--line:#c3d3c8;--accent:#1d6346;--on:#fff}
 @media(prefers-color-scheme:dark){:root{--bg:#101b18;--card:#192823;--text:#f0f6ef;--muted:#b2c6b9;--line:#456355;--accent:#b1e39c;--on:#122317}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 system-ui,sans-serif}main{max-width:37rem;margin:6vh auto;padding:1rem}section,details{background:var(--card);border:1px solid var(--line);border-radius:1rem;padding:clamp(1rem,5vw,2rem);margin:1rem 0}h1{font-size:clamp(1.85rem,5vw,2.5rem);margin:.2rem 0}p{color:var(--muted)}label,summary{font-weight:650}label,input,button{display:block}input,button{font:inherit;border-radius:.55rem;padding:.7rem .85rem}input{width:100%;color:var(--text);background:var(--card);border:1px solid var(--line);margin:.2rem 0 1rem}button{background:var(--accent);color:var(--on);border:0;font-weight:700;cursor:pointer}summary{cursor:pointer}.msg{margin:.65rem 0 0}.msg:empty{display:none}:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 </style>
-<main><header><strong>SolarTree / SyntheticO2</strong><h1>????????? ?? Pico</h1></header>
-<section><h2>Wi-Fi ?????</h2><p>?????? Pico ? USB. ?????? ??????? ?? ??????? ? ?????? ????? ? ????????? ????? ?? ????? <b>CIRCUITPY</b>. ???? ???????? ?????? ??????.</p>
-<form id="net"><label for="ssid">??? ?? ??????? (SSID)</label><input id="ssid" required autocomplete="off" autocapitalize="none" spellcheck="false">
-<label for="pass">?????? ?? Wi-Fi</label><input id="pass" type="password" autocomplete="off" aria-describedby="open-net"><p id="open-net">?? ???????? ????? ?????? ?????? ??????.</p>
-<button>?????? wifi.json</button><p class="msg" role="status" id="net-status"></p></form></section>
-<details><summary>?????????? ????????? ??? SyntheticO2</summary><p>?? ????????? ?? ?????????? ? ????? ????????? ???? ?? ?????????? ?? <b>IVAN-TREE-0001</b>. ??? ?????? ?? ???????? ??? ????? ?? Wi-Fi.</p>
-<form id="device"><label for="key">???? ?? ???????????? (X-Device-Key)</label><input id="key" type="password" required autocomplete="off"><button>?????? device.json</button><p class="msg" role="status" id="device-status"></p></form></details>
+<main><header><strong>SolarTree / SyntheticO2</strong><h1>Настройка на Pico</h1></header>
+<section><h2>Wi-Fi мрежа</h2><p>Свържи Pico с USB. Въведи данните за мрежата и запази файла в основната папка на диска <b>CIRCUITPY</b>. Тази страница работи офлайн.</p>
+<form id="net"><label for="ssid">Име на мрежата (SSID)</label><input id="ssid" required autocomplete="off" autocapitalize="none" spellcheck="false">
+<label for="pass">Парола за Wi-Fi</label><input id="pass" type="password" autocomplete="off" aria-describedby="open-net"><p id="open-net">За отворена мрежа остави полето празно.</p>
+<button>Запази wifi.json</button><p class="msg" role="status" id="net-status"></p></form></section>
+<details><summary>Еднократно свързване със SyntheticO2</summary><p>За изпращане на измервания е нужен отделният ключ за телеметрия на <b>IVAN-TREE-0001</b>. Той остава на платката при смяна на Wi-Fi.</p>
+<form id="device"><label for="key">Ключ на устройството (X-Device-Key)</label><input id="key" type="password" required autocomplete="off"><button>Запази device.json</button><p class="msg" role="status" id="device-status"></p></form></details>
 </main><script>
 async function saveSettings(name, data, output) {
   const contents = JSON.stringify(data, null, 2);
@@ -22,22 +22,22 @@ async function saveSettings(name, data, output) {
     try {
       handle = await window.showSaveFilePicker({suggestedName:name, types:[{description:'JSON',accept:{'application/json':['.json']}}]});
     } catch (err) {
-      if (err.name === 'AbortError') { output.textContent='??????? ? ???????.'; return false; }
+      if (err.name === 'AbortError') { output.textContent='Записът е отменен.'; return false; }
       if (err.name !== 'SecurityError' && err.name !== 'NotAllowedError') throw err;
     }
   }
   if (handle) {
-    if (handle.name !== name) throw new Error('?????? ??????? ??? '+name+'.');
+    if (handle.name !== name) throw new Error('Избери точното име '+name+'.');
     const stream = await handle.createWritable();
     await stream.write(contents);
     await stream.close();
-    output.textContent='?????? ? ???????. ??? ? ?? CIRCUITPY, ??????? ??????? ?? ???????? ? ??????????? Pico.';
+    output.textContent='Файлът е записан. Ако е на CIRCUITPY, изчакай записът да приключи и рестартирай Pico.';
   } else {
     const url=URL.createObjectURL(new Blob([contents], {type:'application/json'}));
     const a=document.createElement('a');
     a.download=name; a.href=url; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),30000);
-    output.textContent='??????? ?????????? ???? ????? CIRCUITPY ? ??????? ??? '+name+', ?????? ??????, ??????? ??????? ?? ???????? ? ??????????? Pico.';
+    output.textContent='Копирай изтегления файл върху CIRCUITPY с точното име '+name+', замени стария, изчакай записът да приключи и рестартирай Pico.';
   }
   return true;
 }
@@ -48,19 +48,19 @@ function setup(formId, file, values, secretField) {
     btn.disabled=true;
     try {
       if (await saveSettings(file,values(),output)) document.getElementById(secretField).value='';
-    } catch(err) { output.textContent=err.message || '??????? ? ?????????. ?????? ??????.'; }
+    } catch(err) { output.textContent=err.message || 'Записът е неуспешен. Опитай отново.'; }
     finally { btn.disabled=false; }
   });
 }
 setup('net','wifi.json',()=>{
   const ssid=document.getElementById('ssid').value, password=document.getElementById('pass').value;
-  if (new TextEncoder().encode(ssid).length>32) throw new Error('????? ?? ??????? ???? ?? ? ?? 32 ?????.');
-  if (password && !/^[\x20-\x7e]{8,63}$/.test(password) && !/^[a-f\d]{64}$/i.test(password)) throw new Error('????????? Wi-Fi ?????? ?? 8 ?? 63 ASCII ????? ??? 64 ??????????????? ?????.');
+  if (new TextEncoder().encode(ssid).length>32) throw new Error('Името на мрежата може да е до 32 байта.');
+  if (password && !/^[\x20-\x7e]{8,63}$/.test(password) && !/^[a-f\d]{64}$/i.test(password)) throw new Error('Използвай Wi-Fi парола от 8 до 63 ASCII знака или 64 шестнадесетични цифри.');
   return {ssid,password};
 },'pass');
 setup('device','device.json',()=>{
   const key=document.getElementById('key').value.trim();
-  if (!/^[!-~]+$/.test(key)) throw new Error('??????? ????? ?? ????????????.');
+  if (!/^[!-~]+$/.test(key)) throw new Error('Провери ключа на устройството.');
   return {key};
 },'key');
 </script></html>
