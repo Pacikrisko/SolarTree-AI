@@ -350,6 +350,11 @@ def test_cloudflare_chat_and_reports(monkeypatch):
         res=c.post('/api/chat',headers=city,json={'message':'Как работят дърветата?'})
         assert res.status_code==200 and res.json()['reply']=='Тестов отговор'
         assert len(requests)==1
+        import json
+        payload=json.loads(requests[0]['messages'][-1]['content'])
+        assert payload['account_context']['trees']
+        assert all('5' in tree['daily_energy_outlook']['total_kwh_by_number_of_days']
+                   for tree in payload['account_context']['trees'])
         monkeypatch.setattr('app.assistant.httpx.post',lambda *a,**k:httpx.Response(429))
         assert c.post('/api/chat',headers=city,json={'message':'Въпрос'}).status_code==502
         assert c.post('/api/chat',headers=city,json={'message':'Справка','report':'overview'}).status_code==200

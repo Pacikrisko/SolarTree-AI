@@ -11,6 +11,9 @@ from .resource_math import (
 )
 
 
+URBAN_DAYLIGHT_HOURS = 12
+
+
 def is_urban_simulator(tree: Tree) -> bool:
     return tree.code == 'URBAN-TREE-0001' and tree.model_code == 'ST-URBAN-2KW'
 
@@ -20,14 +23,14 @@ def urban_sample(tree: Tree, when: datetime):
     model = get_model(tree.model_code)
     # Scenario sunrise is 05:00 UTC. Start with a full water tank at each sunrise.
     hour = (when.hour + when.minute / 60 - 5) % 24
-    phase = math.pi * min(hour, 12) / 12
-    sunlight = max(0.0, math.sin(phase)) if hour < 12 else 0.0
+    phase = math.pi * min(hour, URBAN_DAYLIGHT_HOURS) / URBAN_DAYLIGHT_HOURS
+    sunlight = max(0.0, math.sin(phase)) if hour < URBAN_DAYLIGHT_HOURS else 0.0
     rated_electrolyzer_w = model['electrolyzer_kw'] * 1000
     solar_w = model['rated_solar_w'] * sunlight
     electrolyzer_w = rated_electrolyzer_w * sunlight
     oxygen_lph = model['oxygen_nominal_lph'] * sunlight
     # Integrate the same daylight curve used for the instantaneous gas flows.
-    oxygen_since_dawn = model['oxygen_nominal_lph'] * 12 / math.pi * (1 - math.cos(phase))
+    oxygen_since_dawn = model['oxygen_nominal_lph'] * URBAN_DAYLIGHT_HOURS / math.pi * (1 - math.cos(phase))
     water_used_l = oxygen_since_dawn * 2 * WATER_MOLAR_MASS_G / O2_MOLAR_VOLUME_L / 1000
     water_pct = 100 * (1 - water_used_l / model['water_tank_l'])
     # Constant demonstration fuel-cell load consumes one day's simulated H2 output per day.

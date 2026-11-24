@@ -30,6 +30,7 @@ from .google_login import google_client_id, google_user, verified_claims
 from .security import hash_password, verify_password, create_token, current_user, require_user
 from .ml import predict_power, detect_anomaly
 from .maintenance import initialize_maintenance, maintenance_for, COMPONENTS
+from .energy_outlook import energy_outlook
 from .assistant import answer, account_report, assistant_provider, AssistantAPIError
 from .catalog import get_model, MODELS
 from .resource_math import resource_estimate
@@ -702,6 +703,8 @@ def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
             device['oxygen_history']={**oxygen,'from':points[0]['time'] if points else None,
                                        'to':points[-1]['time'] if points else None}
             device['forecast']=tree_forecast(tree.id,db,user)
+            device['daily_energy_outlook']=energy_outlook(
+                db, tree, device['latest']['source'] if device['latest'] else None, datetime.now(timezone.utc))
             rows=recent_readings(db,tree,96,device['latest']['source']) if device['latest'] else []
             if rows:
                 device['recent_power']={'from':rows[-1].time.isoformat()+'Z','to':rows[0].time.isoformat()+'Z',
