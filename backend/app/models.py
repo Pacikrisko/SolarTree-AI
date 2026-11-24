@@ -15,6 +15,12 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(30), default='owner')
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
+class GoogleIdentity(Base):
+    __tablename__ = 'google_identities'
+    subject: Mapped[str] = mapped_column(String(255), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), unique=True, nullable=False)
+
+
 class Tree(Base):
     __tablename__ = 'trees'
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -420,3 +420,73 @@ def test_chat_history_is_persistent_private_and_paginated(monkeypatch):
         older=second_device.get('/api/chat/history',params={'before':latest['exchanges'][0]['id']},headers=auth_again).json()
         assert len(older['exchanges'])==2 and not older['has_more']
         assert older['exchanges'][0]==saved
+
+
+import pytest
+from app import google_login
+
+
+
+@pytest.fixture
+def google(monkeypatch):
+    monkeypatch.setenv('GOOGLE_CLIENT_ID','solartree-test.apps.googleusercontent.com')
+    claims={'sub':'google-test-subject','email':'google-owner@example.org',
+            'name':'Google User','email_verified':True}
+    def verify(credential,transport,audience):
+        assert audience=='solartree-test.apps.googleusercontent.com'
+        if credential!='test-credential':
+            raise ValueError('unverified')
+        return claims.copy()
+    monkeypatch.setattr(google_login.id_token,'verify_oauth2_token',verify)
+    return claims
+
+
+def sign_in(client,password=None,credential='test-credential'):
+    return client.post('/api/auth/google',json={'credential':credential,'password':password},
+                       headers={'X-Requested-With':'SolarTree'})
+
+
+def test_google_sign_in_and_returning_identity(google):
+    with TestClient(app) as c:
+        assert c.get('/api/auth/google/config').json()['client_id']=='solartree-test.apps.googleusercontent.com'
+        response=sign_in(c)
+        assert response.status_code==200,response.text
+        issued=response.json()
+        user=issued['user']
+        assert user['role']=='owner' and not user['has_password']
+        bearer={'Authorization':'Bearer '+issued['access_token']}
+        assert c.get('/api/auth/me',headers=bearer).json()==user
+        assert c.post('/api/auth/login',json={'email':user['email'],'password':'irrelevant'}).status_code==401
+        google['email']='updated-google@example.org'
+        assert sign_in(c).json()['user']['id']==user['id']
+
+
+def test_google_link_preserves_existing_account(google):
+    google.update(sub='google-test-link',email='google-link@example.org')
+    with TestClient(app) as c:
+        account=c.post('/api/auth/register',json={'email':google['email'],'name':'Existing Owner','password':'TestPassword654'}).json()
+        before={'Authorization':'Bearer '+account['access_token']}
+        saved=c.post('/api/chat',headers=before,json={'message':'Status','report':'overview'}).json()
+        assert sign_in(c).json()=={'requires_password':True,'email':google['email']}
+        assert sign_in(c,'wrong password').status_code==403
+        linked=sign_in(c,'TestPassword654').json()
+        assert linked['user']==account['user']
+        after={'Authorization':'Bearer '+linked['access_token']}
+        assert saved in c.get('/api/chat/history',headers=after).json()['exchanges']
+        assert sign_in(c).json()['user']==account['user']
+        google['sub']='other-verified-google-account'
+        assert sign_in(c,'TestPassword654').status_code==409
+
+
+def test_google_verification_and_disabled_config(google,monkeypatch):
+    with TestClient(app) as c:
+        assert c.post('/api/auth/google',json={'credential':'test-credential'}).status_code==403
+        assert sign_in(c,credential='not-verified').status_code==401
+        google['email_verified']=False
+        assert sign_in(c).status_code==403
+        google['email_verified']=True
+        google['sub']=''
+        assert sign_in(c).status_code==403
+        monkeypatch.delenv('GOOGLE_CLIENT_ID')
+        assert c.get('/api/auth/google/config').json()=={'client_id':None}
+        assert sign_in(c).status_code==503

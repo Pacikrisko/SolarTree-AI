@@ -34,6 +34,10 @@ async function request<T>(path:string, options:RequestInit={}):Promise<T> {
 }
 export const api={
   health:()=>request<Health>('/health'),
+  googleConfig:()=>request<{client_id:string|null}>('/auth/google/config'),
+  googleLogin:(credential:string,password?:string)=>request<TokenPayload|{requires_password:true;email:string}>('/auth/google',{
+    method:'POST',headers:{'X-Requested-With':'SolarTree'},body:JSON.stringify({credential,password})
+  }),
   login:(email:string,password:string)=>request<TokenPayload>('/auth/login',{method:'POST',body:JSON.stringify({email,password})}),
   register:(name:string,email:string,password:string)=>request<TokenPayload>('/auth/register',{method:'POST',body:JSON.stringify({name,email,password})}),
   me:()=>request<User>('/auth/me'),

@@ -1,7 +1,8 @@
 import {tr} from './language'
 import {LanguageButton} from './LanguageButton'
-import {useState, type FormEvent} from 'react'
+import {useRef,useState, type FormEvent} from 'react'
 import {ArrowRight, CircleAlert, Eye, EyeOff, LoaderCircle, LockKeyhole, Mail, UserRound} from 'lucide-react'
+import GoogleSignIn from './GoogleSignIn'
 import SolarTreeMark from './SolarTreeMark'
 import {api} from './api'
 import type {TokenPayload} from './types'
@@ -16,6 +17,29 @@ export default function AuthScreen({onSuccess}: {onSuccess: (payload: TokenPaylo
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  const [link,setLink]=useState<{credential:string;email:string}|null>(null)
+  const inFlight=useRef(false)
+
+  async function submitGoogle(credential:string,existingPassword?:string) {
+    if(inFlight.current)return
+    inFlight.current=true
+    setBusy(true);setError('')
+    try {
+      const result=await api.googleLogin(credential,existingPassword)
+      if('requires_password' in result){
+        setPassword('');setVisible(false)
+        setLink({credential,email:result.email})
+      }else{
+        onSuccess(result)
+      }
+    }catch(err){setError(err instanceof Error?err.message:tr('Възникна грешка. Опитай отново.'))}
+    finally{inFlight.current=false;setBusy(false)}
+  }
+
+  function cancelLink(){
+    setLink(null);setError('');setPassword('');setVisible(false)
+  }
+
   function switchMode() {
     setRegistering(!registering)
     setError('')
@@ -25,7 +49,9 @@ export default function AuthScreen({onSuccess}: {onSuccess: (payload: TokenPaylo
 
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (busy) return
+    if (busy || inFlight.current) return
+    if(link){await submitGoogle(link.credential,password);return}
+    inFlight.current=true
     setBusy(true)
     setError('')
     try {
@@ -36,6 +62,7 @@ export default function AuthScreen({onSuccess}: {onSuccess: (payload: TokenPaylo
     } catch (err) {
       setError(err instanceof Error ? err.message : tr("Възникна грешка. Опитай отново."))
     } finally {
+      inFlight.current=false
       setBusy(false)
     }
   }
@@ -58,11 +85,12 @@ export default function AuthScreen({onSuccess}: {onSuccess: (payload: TokenPaylo
           <div className="signin-content">
             <LanguageButton/>
             <header key={registering ? "register" : "login"}>
-              <h1 id="signin-title">{registering ? tr("Създай профил") : tr("Вход в профила")}</h1>
-              <p>{registering ? tr("С един профил можеш да добавяш и следиш своите соларни дървета.") : tr("Влез, за да следиш устройствата и измерванията си.")}</p>
+              <h1 id="signin-title">{link?tr('Свържи профила си с Google'):registering ? tr("Създай профил") : tr("Вход в профила")}</h1>
+              <p>{link?tr('За да запазиш дърветата и разговорите си, потвърди паролата си за SolarTree.'):registering ? tr("С един профил можеш да добавяш и следиш своите соларни дървета.") : tr("Влез, за да следиш устройствата и измерванията си.")}</p>
             </header>
+            {!link&&<GoogleSignIn disabled={busy} onCredential={credential=>void submitGoogle(credential)}/>}
             <form onSubmit={submit} className="signin-form" aria-busy={busy}>
-              {registering && (
+              {registering && !link && (
                 <div className="signin-field">
                   <label htmlFor="signin-name">{tr("Име и фамилия")}</label>
                   <div className="signin-input">
@@ -75,29 +103,29 @@ export default function AuthScreen({onSuccess}: {onSuccess: (payload: TokenPaylo
                 <label htmlFor="signin-email">{tr("Имейл адрес")}</label>
                 <div className="signin-input">
                   <Mail size={18} aria-hidden="true" />
-                  <input id="signin-email" name="email" type="email" autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder="name@example.com" required value={email} onChange={e => setEmail(e.target.value)} />
+                  <input id="signin-email" name="email" type="email" autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder="name@example.com" required value={link?.email??email} readOnly={!!link} onChange={e => setEmail(e.target.value)} />
                 </div>
               </div>
               <div className="signin-field">
                 <label htmlFor="signin-password">{tr("Парола")}</label>
                 <div className="signin-input">
                   <LockKeyhole size={18} aria-hidden="true" />
-                  <input id="signin-password" name="password" type={visible ? 'text' : 'password'} autoComplete={registering ? 'new-password' : 'current-password'} placeholder={registering ? tr("Въведи нова парола") : tr("Въведи паролата си")} required minLength={registering ? 8 : 1} value={password} onChange={e => setPassword(e.target.value)} />
+                  <input id="signin-password" name="password" type={visible ? 'text' : 'password'} autoComplete={registering&&!link ? 'new-password' : 'current-password'} placeholder={registering&&!link ? tr("Въведи нова парола") : tr("Въведи паролата си")} required minLength={registering&&!link ? 8 : 1} value={password} onChange={e => setPassword(e.target.value)} />
                   <button type="button" className="signin-reveal" aria-label={visible ? tr("Скрий паролата") : tr("Покажи паролата")} onClick={() => setVisible(!visible)}>
                     {visible ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-                {registering && <small>{tr("Използвай поне 8 символа.")}</small>}
+                {registering && !link && <small>{tr("Използвай поне 8 символа.")}</small>}
               </div>
               {error && <p className="signin-error" role="alert"><CircleAlert size={17} aria-hidden="true" />{tr(error)}</p>}
               <button className="signin-submit" type="submit" disabled={busy}>
-                {busy ? tr("Свързване…") : registering ? tr("Създай профил") : tr("Влез в приложението")}
+                {busy ? tr("Свързване…") : link?tr("Свържи и влез"):registering ? tr("Създай профил") : tr("Влез в приложението")}
                 {busy ? <LoaderCircle size={18} aria-hidden="true" /> : <ArrowRight size={18} aria-hidden="true" />}
               </button>
             </form>
             <p className="signin-switch">
-              {registering ? tr("Вече имаш профил?") : tr("Нямаш профил?")}
-              <button type="button" disabled={busy} onClick={switchMode}>{registering ? tr("Вход") : tr("Регистрация")}</button>
+              {link?null:registering ? tr("Вече имаш профил?") : tr("Нямаш профил?")}
+              <button type="button" disabled={busy} onClick={link?cancelLink:switchMode}>{link?tr("Отказ"):registering ? tr("Вход") : tr("Регистрация")}</button>
             </p>
           </div>
         </section>

@@ -26,6 +26,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from .database import Base, engine, get_db, SessionLocal
 from .models import User, Tree, Reading, Alert, Maintenance, DeviceRegistration, MobilePairSession, DeviceSample, ChatExchange
 from .seed import DEMO_MODE, seed_demo
+from .google_login import google_client_id, google_user, verified_claims
 from .security import hash_password, verify_password, create_token, current_user, require_user
 from .ml import predict_power, detect_anomaly
 from .maintenance import initialize_maintenance, maintenance_for, COMPONENTS
@@ -99,7 +100,7 @@ class SimIn(BaseModel):
     mode: Literal['normal','anomaly']='normal'
 
 def to_user(user: User):
-    return {'id':user.id,'name':user.name,'email':user.email,'role':user.role}
+    return {'id':user.id,'name':user.name,'email':user.email,'role':user.role,'has_password':bool(user.password_hash)}
 def to_reading(reading: Reading):
     return {'id':reading.id,'tree_id':reading.tree_id,'time':reading.time.isoformat()+'Z',
             'power_w':reading.power_w,'temperature_c':reading.temperature_c,
@@ -195,10 +196,33 @@ def health():
     provider=assistant_provider()
     return {'ok':True,'real_llm':bool(provider),'ai_provider':provider,'simulation_enabled':DEMO_MODE,
             'version':'0.8.0-deploy'}
+class GoogleLoginIn(BaseModel):
+    credential: str = Field(min_length=1, max_length=8192)
+    password: str | None = Field(default=None, max_length=128)
+
+
+@app.get('/api/auth/google/config')
+def google_config():
+    return {'client_id': google_client_id() or None}
+
+
+@app.post('/api/auth/google')
+def login_with_google(data:GoogleLoginIn, db:Session=Depends(get_db), x_requested_with:str|None=Header(default=None)):
+    # GIS popup callback posts JSON. A cross-origin browser request with this
+    # custom header requires approval by the application's CORS middleware.
+    if x_requested_with != 'SolarTree':
+        raise HTTPException(403, detail='Невалидна заявка за вход.')
+    claims = verified_claims(data.credential)
+    user = google_user(db, claims, data.password)
+    if user is None:
+        return {'requires_password': True, 'email': claims['email'].strip().lower()}
+    return {'access_token': create_token(user), 'user': to_user(user)}
+
+
 @app.post('/api/auth/login')
 def login(data:LoginIn,db:Session=Depends(get_db)):
     user=db.scalar(select(User).where(User.email==data.email.strip().lower()))
-    if not user or not verify_password(data.password,user.password_hash):
+    if not user or not user.password_hash or not verify_password(data.password,user.password_hash):
         raise HTTPException(status_code=401,detail='Невалиден имейл или парола.')
     return {'access_token':create_token(user),'user':to_user(user)}
 @app.post('/api/auth/register',status_code=201)
@@ -251,7 +275,7 @@ def update_profile(data:UpdateProfileIn,db:Session=Depends(get_db),user:User=Dep
 
 @app.post('/api/auth/change-password')
 def change_password(data:ChangePasswordIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
-    if not verify_password(data.current_password,user.password_hash):
+    if not user.password_hash or not verify_password(data.current_password,user.password_hash):
         raise HTTPException(status_code=403,detail='Настоящата парола е неправилна.')
     user.password_hash=hash_password(data.new_password)
     db.commit()

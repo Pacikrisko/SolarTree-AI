@@ -457,5 +457,16 @@ export const english:Record<string,string> = {
   "Достигнат е лимит на Cloudflare. Опитай по-късно или избери справка.": "Cloudflare has reached a limit. Try later or choose a report.",
   "Cloudflare не върна текстов отговор. Опитай отново или избери справка.": "Cloudflare did not return a text reply. Try again or choose a report.",
   "Облачният AI очаква настройка на сървъра.": "Cloud AI requires server configuration.",
-  "Тази заявка вече е използвана.": "This request has already been used."
+  "Тази заявка вече е използвана.": "This request has already been used.",
+  "Влизаш в SolarTree с Google.": "You sign in to SolarTree with Google.",
+  "Google не се зареди.": "Google sign-in did not load.",
+  "Свържи профила си с Google": "Link your account to Google",
+  "За да запазиш дърветата и разговорите си, потвърди паролата си за SolarTree.": "Confirm your SolarTree password to keep your trees and conversations in this account.",
+  "Свържи и влез": "Link account and sign in",
+  "Входът с Google още не е активиран.": "Google sign-in is not enabled yet.",
+  "Google не отговори. Опитай отново.": "Google did not respond. Try again.",
+  "Входът с Google не бе потвърден. Опитай отново.": "Google sign-in could not be verified. Try again.",
+  "Избери Google акаунт с потвърден имейл адрес.": "Choose a Google account with a verified email address.",
+  "Профилът вече е свързан с друг Google акаунт.": "This profile is already linked to another Google account.",
+  "Невалидна заявка за вход.": "Invalid sign-in request."
 }
