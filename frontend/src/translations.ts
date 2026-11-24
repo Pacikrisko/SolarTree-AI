@@ -367,7 +367,6 @@ export const english:Record<string,string> = {
   "Получават се данни от устройството": "Receiving data from the device",
   "Все още няма активна връзка": "No active connection yet",
   "Адрес за подаване на данни": "Data endpoint",
-  "Само налични датчици: docs/PICO_REAL_CONNECTION_v06.md. За пълни измервания: /reading": "Partial sensor readings: docs/PICO_REAL_CONNECTION_v06.md. For complete readings: /reading",
   "Функцията записва измервания и не изпраща команди към електролизера или защитите му.": "This feature records readings. It does not send commands to the electrolyzer or its safeguards.",
   "Разбрах": "Got it",
   "Изображението не може да се зареди.": "The image could not be loaded.",

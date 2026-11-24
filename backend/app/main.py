@@ -16,7 +16,7 @@ from secrets import compare_digest
 from hashlib import sha256
 from typing import Annotated, Literal
 from fastapi.staticfiles import StaticFiles
-from fastapi import FastAPI, Depends, HTTPException, Header, UploadFile, File, Request, Query
+from fastapi import FastAPI, Depends, HTTPException, Header, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, StringConstraints
@@ -36,7 +36,6 @@ from .catalog import get_model, MODELS
 from .resource_math import resource_estimate
 from .urban_history import add_demo_urban_history, is_urban_simulator, urban_readings, urban_sample
 from .migrations import upgrade
-from .media import save_media, safe_media_path
 from .model_media import find_model_media, media_kind
 from .mobile_scanner import scanner_page
 
