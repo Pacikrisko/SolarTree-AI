@@ -1,4 +1,9 @@
 export const english:Record<string,string> = {
+  "Настрой Wi-Fi": "Set up Wi-Fi",
+  "Свържи Pico с USB и отвори WiFi.html на компютъра. Запази wifi.json на диска CIRCUITPY.": "Connect the Pico via USB and open WiFi.html on your computer. Save wifi.json to the CIRCUITPY drive.",
+  "Добави ключа на устройството": "Add the device key",
+  "Запази device.json с индивидуалния ключ за телеметрия на същия диск и рестартирай Pico.": "Save device.json with the device telemetry key on the same drive and restart the Pico.",
+  "На четвъртия LCD екран потърси Upload OK. В „Преглед“ избери това дърво и провери часа на последното измерване.": "Look for Upload OK on the fourth LCD screen. Select this tree in Overview and check the time of its latest measurement.",
   "Разговорът е изтрит.": "This conversation was deleted.",
   "Да се изтрият ли всички разговори в този профил?": "Delete all conversations in this account?",
   "Да се изтрие ли този разговор?": "Delete this conversation?",
