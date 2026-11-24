@@ -17,4 +17,9 @@ backend/user_media
 backend/tests
 backend/examples
 backend/diagnose_database.py
-frontend/package-lock.json
+
+docs/
+firmware/
+.github/
+**/wifi.json
+**/device.json

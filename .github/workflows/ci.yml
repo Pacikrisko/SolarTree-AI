@@ -38,3 +38,33 @@ jobs:
         run: npm run build
       - name: Test telemetry and session handling
         run: node --experimental-strip-types --test tests/*.test.mjs
+
+  hosting:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 3s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build deployment image
+        run: docker build -t solartree-ci .
+      - name: Start with a fresh PostgreSQL database
+        run: |
+          docker run -d --name solartree --network host \
+            -e APP_ENV=production -e DEMO_MODE=false \
+            -e SECRET_KEY="$(openssl rand -hex 32)" \
+            -e DATABASE_URL=postgresql://postgres:ci_only@127.0.0.1:5432/postgres \
+            solartree-ci
+          curl -fsS --retry 20 --retry-connrefused --retry-delay 2 \
+            http://127.0.0.1:10000/api/health | jq -e '.ok == true and .simulation_enabled == false'
+          curl -fsS http://127.0.0.1:10000/ | grep -q 'id="root"'
+          docker exec solartree python provision_device.py --help
+      - name: Show startup logs on failure
+        if: failure()
+        run: docker logs solartree || true

@@ -1,4 +1,4 @@
-# SolarTree AI v0.8 — React/Vite frontend + FastAPI backend (one Render service)
+# Build the web client and serve it from FastAPI.
 FROM node:22-bookworm-slim AS frontend-build
 WORKDIR /build/frontend
 COPY frontend/package*.json ./
@@ -11,6 +11,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=10000
 WORKDIR /app
 COPY backend/requirements.txt ./backend/requirements.txt
 RUN pip install --no-cache-dir -r backend/requirements.txt
+COPY backend/provision_device.py backend/rotate_device_key.py ./backend/
 COPY backend/app ./backend/app
 COPY backend/model_media ./backend/model_media
 COPY --from=frontend-build /build/frontend/dist ./frontend_dist

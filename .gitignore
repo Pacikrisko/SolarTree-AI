@@ -23,3 +23,7 @@ backend/user_media/
 *.db-wal
 *.pem
 __pypackages__/
+
+# Private Pico provisioning files
+wifi.json
+device.json
