@@ -2,7 +2,7 @@
 import json
 import time
 
-HOST = "solartree-ai.onrender.com"
+HOST = "https://solartree.pgknma.space/"
 DEVICE_CODE = "IVAN-TREE-0001"
 INTERVAL = 30
 
