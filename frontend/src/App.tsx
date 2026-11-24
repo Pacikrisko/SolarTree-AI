@@ -2,7 +2,7 @@ import {LanguageButton,useLanguage} from './LanguageButton'
 import {tr,getLanguage,locale} from './language'
 import {useCallback,useEffect,useMemo,useRef,useState, type FormEvent, type ReactNode} from 'react'
 import {Area,AreaChart,CartesianGrid,Line,LineChart,ResponsiveContainer,Tooltip,XAxis,YAxis} from 'recharts'
-import {Activity,ArrowLeft,ArrowRight,ArrowUpRight,Bell,BrainCircuit,Check,CheckCircle2,ChevronRight,CircleAlert,Clock3,Database,Droplets,Filter,Gauge,Info,Leaf,LockKeyhole,LogOut,MapPin,MessageCircle,Plus,RefreshCw,Search,Send,ScanLine,Settings2,Shield,ShieldCheck,SlidersHorizontal,Sparkles,Sun,Moon,Wifi,TreePine,TrendingUp,UserRound,Waves,Wrench,X,Zap, type LucideIcon} from 'lucide-react'
+import {Activity,ArrowLeft,ArrowRight,ArrowUpRight,Bell,BrainCircuit,Check,CheckCircle2,ChevronRight,CircleAlert,Clock3,Database,Droplets,Filter,Gauge,Info,Leaf,LockKeyhole,LogOut,MapPin,MessageCircle,PanelLeft,Trash2,Plus,RefreshCw,Search,Send,ScanLine,Settings2,Shield,ShieldCheck,SlidersHorizontal,Sparkles,Sun,Moon,Wifi,TreePine,TrendingUp,UserRound,Waves,Wrench,X,Zap, type LucideIcon} from 'lucide-react'
 import {latestMetric,latestTime} from './telemetry'
 import AuthScreen from './AuthScreen'
 import DeviceMedia from './DeviceMedia'
@@ -12,7 +12,7 @@ import PhonePairing from './PhonePairing'
 import ConnectionGuide from './ConnectionGuide'
 import ResourcePlanner from './ResourcePlanner'
 import PairQrScanner from './PairQrScanner'
-import {api,hasAuthToken,setAuthToken,syncAuthToken} from './api'
+import {type ChatThread,api,hasAuthToken,setAuthToken,syncAuthToken} from './api'
 import type {Alert,ChatMessage,Forecast,Health,Page,Reading,Service,TokenPayload,Tree,User,OxygenHistory,PairResult,ChatExchange} from './types'
 import './styles.css'
 
@@ -258,17 +258,86 @@ function requestId(){
   return [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-')
 }
 function AssistantPage({health,trees,selected,onSelect}:{health:Health|null;trees:Tree[];selected:Tree|null;onSelect:(id:number)=>void}){
-  const [wholeAccount,setWholeAccount]=useState(true)
-  const scopeId=wholeAccount?null:selected?.id??null
-  function changeScope(value:string){
-    setWholeAccount(!value)
-    if(value)onSelect(Number(value))
+  type Selection = ChatThread & { draft?:boolean }
+  const draft = (tree_id:number|null):Selection => ({conversation_id:requestId(),tree_id,title:'',draft:true})
+  const same = (a:ChatThread,b:ChatThread) => a.tree_id===b.tree_id && a.conversation_id===b.conversation_id
+  const [items,setItems]=useState<ChatThread[]>([])
+  const [active,setActive]=useState<Selection|null>(null)
+  const [open,setOpen]=useState(()=>window.innerWidth>=1000)
+  const [working,setWorking]=useState(false)
+  const [error,setError]=useState('')
+  const [attempt,setAttempt]=useState(0)
+  useEffect(()=>{
+    let mounted=true
+    api.threads().then(rows=>{
+      if(mounted){setItems(rows);setActive(rows[0]??draft(null));setError('')}
+    }).catch(err=>{if(mounted)setError(err.message)})
+    return ()=>{mounted=false}
+  },[attempt])
+  useEffect(()=>{
+    if(!open)return
+    const close=(e:KeyboardEvent)=>{if(e.key==='Escape')setOpen(false)}
+    window.addEventListener('keydown',close)
+    return ()=>window.removeEventListener('keydown',close)
+  },[open])
+  function choose(item:Selection){
+    setActive(item)
+    if(item.tree_id!==null)onSelect(item.tree_id)
+    if(window.innerWidth<1000)setOpen(false)
   }
-  return <Conversation key={scopeId??'account'} {...{health,trees,selected,scopeId,wholeAccount,changeScope}}/>
+  function saved(item:Selection,question:string){
+    const row={conversation_id:item.conversation_id,tree_id:item.tree_id,title:item.title||question.slice(0,100)}
+    setItems(prev=>[row,...prev.filter(i=>!same(i,row))])
+    setActive(current=>current&&same(current,row)?row:current)
+  }
+  async function remove(item?:ChatThread){
+    if(working || !window.confirm(tr(item?'Да се изтрие ли този разговор?':'Да се изтрият ли всички разговори в този профил?')))return
+    setWorking(true);setError('')
+    try {
+      if(item)await api.deleteThread(item);else await api.clearThreads()
+      const left=item?items.filter(i=>!same(i,item)):[]
+      setItems(left)
+      if(!item || (active&&same(active,item)))setActive(left[0]??draft(active?.tree_id??null))
+    }catch(err){setError((err as Error).message)}finally{setWorking(false)}
+  }
+  const scopeId=active?.tree_id??null
+  function changeScope(value:string){
+    const treeId=value?Number(value):null
+    choose(items.find(i=>i.tree_id===treeId)??draft(treeId))
+  }
+  return <div className="page-body assistant-page">
+    <div className="thread-tools">
+      <button className="btn btn-outline" aria-expanded={open} aria-controls="thread-list" onClick={()=>setOpen(v=>!v)}><PanelLeft size={17}/>{tr('Разговори')}</button>
+      <button className="btn btn-outline" disabled={working||!active} onClick={()=>choose(draft(scopeId))}><Plus size={17}/>{tr('Нов чат')}</button>
+      <select disabled={working||!active} aria-label={tr('Обхват на разговора')} value={scopeId??''} onChange={e=>changeScope(e.target.value)}>
+        <option value="">{tr('Всички мои дървета')}</option>{trees.map(t=><option value={t.id} key={t.id}>{t.name}</option>)}
+      </select>
+    </div>
+    {error&&<div role="alert"><ErrorText message={error}/>{!active&&<button className="btn btn-outline" onClick={()=>setAttempt(n=>n+1)}>{tr('Опитай отново')}</button>}</div>}
+    <div className={'thread-workspace'+(open?' list-open':'')}>
+      {open&&<button className="thread-scrim" aria-label={tr('Скрий списъка')} onClick={()=>setOpen(false)}/>}
+      <aside id="thread-list" className="thread-list" hidden={!open} aria-label={tr('Разговори')}>
+        <h3>{tr('Разговори')}</h3>
+        <div className="thread-rows">{items.map(item=><div key={String(item.tree_id)+'/'+item.conversation_id} className="thread-row">
+          <button className="thread-choice" aria-current={active&&same(active,item)?'true':undefined} title={item.title} disabled={working} onClick={()=>choose(item)}>
+            <span>{item.title}</span><small>{trees.find(t=>t.id===item.tree_id)?.name??tr('Всички мои дървета')}</small>
+          </button>
+          <button className="thread-delete" disabled={working} aria-label={tr('Изтрий разговор')+' — '+item.title} onClick={()=>void remove(item)}><Trash2 size={16}/></button>
+        </div>)}
+        {active&&!items.length&&<p>{tr('Няма запазени разговори.')}</p>}</div>
+        {items.length>0&&<button className="thread-clear" disabled={working} onClick={()=>void remove()}><Trash2 size={15}/>{tr('Изчисти историята')}</button>}
+      </aside>
+      {active?<Conversation key={String(scopeId)+'/'+active.conversation_id} {...{health,trees,scopeId,working}}
+        selected={trees.find(t=>t.id===scopeId)??selected} wholeAccount={scopeId===null}
+        conversationId={active.conversation_id} draft={!!active.draft} onSaved={question=>saved(active,question)} onBusy={setWorking}/>
+        :!error&&<p role="status">{tr('Зареждане на историята…')}</p>}
+    </div>
+  </div>
 }
 
-function Conversation({health,trees,selected,scopeId,wholeAccount,changeScope}:{
-  health:Health|null;trees:Tree[];selected:Tree|null;scopeId:number|null;wholeAccount:boolean;changeScope:(value:string)=>void
+function Conversation({health,trees,selected,scopeId,wholeAccount,conversationId,draft,onSaved,onBusy,working}:{
+  health:Health|null;trees:Tree[];selected:Tree|null;scopeId:number|null;wholeAccount:boolean
+  conversationId:string|null;draft:boolean;onSaved:(question:string)=>void;onBusy:(busy:boolean)=>void;working:boolean
 }){
   const [text,setText]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('')
   const [exchanges,setExchanges]=useState<ChatExchange[]>([])
@@ -284,48 +353,41 @@ function Conversation({health,trees,selected,scopeId,wholeAccount,changeScope}:{
   useEffect(()=>{
     let active=true
     setLoading(true);setLoadError(false)
-    api.chatHistory(scopeId).then(page=>{
+    api.chatHistory(scopeId,conversationId).then(page=>{
       if(active){setExchanges(page.exchanges);setHasMore(page.has_more)}
     }).catch(()=>{if(active)setLoadError(true)}).finally(()=>{if(active)setLoading(false)})
     return ()=>{active=false}
-  },[scopeId,attempt])
+  },[scopeId,conversationId,attempt])
   useEffect(()=>{endRef.current?.scrollIntoView({block:'nearest'})},[exchanges.at(-1)?.id,pending])
   async function older(){
     if(loadingOlder||!exchanges.length)return
     setLoadingOlder(true);setError('')
     try{
-      const page=await api.chatHistory(scopeId,exchanges[0].id)
+      const page=await api.chatHistory(scopeId,conversationId,exchanges[0].id)
       setExchanges(rows=>[...page.exchanges.filter(row=>!rows.some(old=>old.id===row.id)),...rows])
       setHasMore(page.has_more)
     }catch(err){setError((err as Error).message)}finally{setLoadingOlder(false)}
   }
   const send=async(value?:string,report?:'overview'|'energy'|'maintenance')=>{
     const q=(value??text).trim()
-    if(!q||sending.current||loading||loadError||(!report&&!canChat))return
+    if(!q||working||sending.current||loading||loadError||(!report&&!canChat))return
     const language=getLanguage()
     const previous=retry.current
-    const id=previous?.message===q&&previous.report===report&&previous.language===language?previous.id:requestId()
+    const id=draft&&conversationId?conversationId:previous?.message===q&&previous.report===report&&previous.language===language?previous.id:requestId()
     retry.current={message:q,report,language,id}
-    sending.current=true;setPending(q);setBusy(true);setError('')
+    sending.current=true;onBusy(true);setPending(q);setBusy(true);setError('')
     try{
-      const saved=await api.chat(q,scopeId,id,language,report)
+      const saved=await api.chat(q,scopeId,id,conversationId,language,report)
       setExchanges(rows=>rows.some(row=>row.id===saved.id)?rows:[...rows,saved])
       if(!report)setText('')
       retry.current=null
-      window.dispatchEvent(new CustomEvent('solartree-chat-saved',{detail:scopeId}))
+      onSaved(q)
     }catch(err){setError((err as Error).message)}
-    finally{sending.current=false;setBusy(false);setPending('')}
+    finally{sending.current=false;onBusy(false);setBusy(false);setPending('')}
   }
-  useEffect(()=>{
-    const sync=(event:Event)=>{
-      if(!sending.current&&(event as CustomEvent).detail===scopeId)setAttempt(n=>n+1)
-    }
-    window.addEventListener('solartree-chat-saved',sync)
-    return ()=>window.removeEventListener('solartree-chat-saved',sync)
-  },[scopeId])
-  return <div className="page-body assistant-page"><div className="assistant-layout"><Panel className="conversation-panel"><div className="chat-head"><div className="chat-identity"><span className="assistant-avatar"><Sparkles size={23}/></span><div><h3>SolarTree Intelligence</h3><small>{health?.ai_provider==='cloudflare'?'Cloudflare Workers AI':health?.real_llm?tr("Свободен разговор с AI"):tr("Справки от данните в профила")}</small></div></div></div>
+  return <div className="assistant-layout"><Panel className="conversation-panel"><div className="chat-head"><div className="chat-identity"><span className="assistant-avatar"><Sparkles size={23}/></span><div><h3>SolarTree Intelligence</h3><small>{health?.ai_provider==='cloudflare'?'Cloudflare Workers AI':health?.real_llm?tr("Свободен разговор с AI"):tr("Справки от данните в профила")}</small></div></div></div>
     <div className="prompt-chips">{([['overview',tr("Състояние")],['energy',tr("Мощност, вода и кислород")],['maintenance',tr("Сервизни срокове")]] as const).map(([kind,label])=><button key={kind} disabled={busy||loading||loadError} onClick={()=>send(label,kind)}>{label}</button>)}</div>
     <div className="chat-stream">
       {hasMore&&<button className="btn btn-quiet btn-small" disabled={loadingOlder} onClick={older}>{tr("По-стари съобщения")}</button>}
-      {loading?<p role="status">{tr("Зареждане на историята…")}</p>:loadError?<div role="alert">{tr("Историята не се зареди.")} <button className="btn btn-outline" onClick={()=>setAttempt(n=>n+1)}>{tr("Опитай отново")}</button></div>:chat.length===0?<div className="chat-intro"><div className="chat-intro-icon"><BrainCircuit size={39} strokeWidth={1.4}/></div><span className="eyebrow">SOLARTREE AI</span><h2>{tr("Как мога да помогна?")}</h2><p>{canChat?tr("Избери справка или задай въпрос за дърветата в профила си."):tr("Избери справка за дърветата в профила си.")}</p></div>:<div className="chat-bubbles">{chat.map((msg,i)=><div key={i} className={`chat-bubble ${msg.role}`}><span className="chat-bubble-avatar">{msg.role==='assistant'?<Sparkles size={15}/>:<UserRound size={15}/>}</span><div style={{whiteSpace:'pre-wrap'}}>{msg.content}</div></div>)}{busy&&<div className="chat-bubble assistant"><span className="chat-bubble-avatar"><Sparkles size={15}/></span><div className="typing"><i/><i/><i/></div></div>}<div ref={endRef}/></div>}</div>{error&&<div className="chat-error"><ErrorText message={error}/></div>}<div className="chat-input-area"><div className="chat-input-box"><textarea aria-label={tr("Съобщение до AI асистента")} value={text} disabled={!canChat||loading||loadError||busy} rows={2} maxLength={1600} placeholder={canChat?tr("Напиши съобщение…"):tr("Облачният чат е недостъпен")} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button type="button" aria-label={tr("Изпрати")} disabled={!canChat||busy||!text.trim()} onClick={()=>send()}><Send size={18}/></button></div><small>{tr("AI предоставя информация и препоръки. Не управлява физически защитни системи.")}</small></div></Panel><div className="assistant-context"><Panel className="context-card"><span className="eyebrow">{tr("КОНТЕКСТ НА РАЗГОВОРА")}</span><h3>{tr("Обхват")}</h3><select aria-label={tr("Обхват на разговора")} value={scopeId??''} onChange={e=>changeScope(e.target.value)}><option value="">{tr("Всички мои дървета")}</option>{trees.map(t=><option value={t.id} key={t.id}>{t.name}</option>)}</select>{wholeAccount?<p>{tr("Дървета в профила:")} {trees.length}</p>:<><div className="context-device"><div className="context-tree-icon"><TreePine size={28}/></div><h4>{selected?.name||tr("Няма дърво")}</h4><span>{selected?.code||'—'}</span></div><div className="context-metric"><span>{tr("Мощност")}</span><strong>{metricText(selected,'power_w',' W')}</strong></div><div className="context-metric"><span>{tr("Вода")}</span><strong>{metricText(selected,'water_pct','%')}</strong></div><div className="context-metric"><span>{tr("Източник")}</span><strong>{selected?.latest?.source==='simulation'&&latestTime(selected)===selected.latest.time?tr("Симулация"):latestTime(selected)?tr("Устройство"):tr("Няма измерване")}</strong></div></>}</Panel><Panel className="context-privacy"><ShieldCheck size={22}/><h3>{tr("Твоите данни остават твои")}</h3><p>{tr("При разговор облачният AI получава въпроса, последните съобщения и данни за избраните дървета. Справките се изготвят на сървъра на SolarTree.")}</p></Panel></div></div></div>
+      {loading?<p role="status">{tr("Зареждане на историята…")}</p>:loadError?<div role="alert">{tr("Историята не се зареди.")} <button className="btn btn-outline" onClick={()=>setAttempt(n=>n+1)}>{tr("Опитай отново")}</button></div>:chat.length===0?<div className="chat-intro"><div className="chat-intro-icon"><BrainCircuit size={39} strokeWidth={1.4}/></div><span className="eyebrow">SOLARTREE AI</span><h2>{tr("Как мога да помогна?")}</h2><p>{canChat?tr("Избери справка или задай въпрос за дърветата в профила си."):tr("Избери справка за дърветата в профила си.")}</p></div>:<div className="chat-bubbles">{chat.map((msg,i)=><div key={i} className={`chat-bubble ${msg.role}`}><span className="chat-bubble-avatar">{msg.role==='assistant'?<Sparkles size={15}/>:<UserRound size={15}/>}</span><div style={{whiteSpace:'pre-wrap'}}>{msg.content}</div></div>)}{busy&&<div className="chat-bubble assistant"><span className="chat-bubble-avatar"><Sparkles size={15}/></span><div className="typing"><i/><i/><i/></div></div>}<div ref={endRef}/></div>}</div>{error&&<div className="chat-error"><ErrorText message={error}/></div>}<div className="chat-input-area"><div className="chat-input-box"><textarea aria-label={tr("Съобщение до AI асистента")} value={text} disabled={!canChat||loading||loadError||busy} rows={2} maxLength={1600} placeholder={canChat?tr("Напиши съобщение…"):tr("Облачният чат е недостъпен")} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}}/><button type="button" aria-label={tr("Изпрати")} disabled={!canChat||busy||!text.trim()} onClick={()=>send()}><Send size={18}/></button></div><small>{tr("AI предоставя информация и препоръки. Не управлява физически защитни системи.")}</small></div></Panel><div className="assistant-context"><Panel className="context-card"><span className="eyebrow">{tr("КОНТЕКСТ НА РАЗГОВОРА")}</span><h3>{tr("Обхват")}</h3><strong>{wholeAccount?tr('Всички мои дървета'):selected?.name}</strong>{wholeAccount?<p>{tr("Дървета в профила:")} {trees.length}</p>:<><div className="context-device"><div className="context-tree-icon"><TreePine size={28}/></div><h4>{selected?.name||tr("Няма дърво")}</h4><span>{selected?.code||'—'}</span></div><div className="context-metric"><span>{tr("Мощност")}</span><strong>{metricText(selected,'power_w',' W')}</strong></div><div className="context-metric"><span>{tr("Вода")}</span><strong>{metricText(selected,'water_pct','%')}</strong></div><div className="context-metric"><span>{tr("Източник")}</span><strong>{selected?.latest?.source==='simulation'&&latestTime(selected)===selected.latest.time?tr("Симулация"):latestTime(selected)?tr("Устройство"):tr("Няма измерване")}</strong></div></>}</Panel><Panel className="context-privacy"><ShieldCheck size={22}/><h3>{tr("Твоите данни остават твои")}</h3><p>{tr("При разговор облачният AI получава въпроса, последните съобщения и данни за избраните дървета. Справките се изготвят на сървъра на SolarTree.")}</p></Panel></div></div>
 }

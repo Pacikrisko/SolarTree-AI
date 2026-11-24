@@ -32,6 +32,15 @@ async function request<T>(path:string, options:RequestInit={}):Promise<T> {
   }
   return response.json() as Promise<T>
 }
+export interface ChatThread { conversation_id: string|null; tree_id: number|null; title: string }
+
+function threadParams(treeId:number|null, conversationId:string|null) {
+  const params=new URLSearchParams()
+  if(treeId!==null)params.set('tree_id',String(treeId))
+  if(conversationId!==null)params.set('conversation_id',conversationId)
+  return params
+}
+
 export const api={
   health:()=>request<Health>('/health'),
   googleConfig:()=>request<{client_id:string|null}>('/auth/google/config'),
@@ -72,12 +81,14 @@ export const api={
     if(!response.ok)throw new Error('Неуспешно зареждане на медийния файл.')
     return response.blob()
   },
-  chatHistory:(treeId:number|null,before?:number)=>{
-    const params=new URLSearchParams()
-    if(treeId!==null)params.set('tree_id',String(treeId))
+  threads:()=>request<ChatThread[]>('/chat/conversations'),
+  deleteThread:(row:ChatThread)=>request<{ok:boolean}>('/chat/conversations/selected?'+threadParams(row.tree_id,row.conversation_id),{method:'DELETE'}),
+  clearThreads:()=>request<{ok:boolean}>('/chat/conversations',{method:'DELETE'}),
+  chatHistory:(treeId:number|null,conversationId:string|null,before?:number)=>{
+    const params=threadParams(treeId,conversationId)
     if(before!==undefined)params.set('before',String(before))
     return request<{exchanges:ChatExchange[];has_more:boolean}>(`/chat/history?${params}`)
   },
-  chat:(message:string,tree_id:number|null,request_id:string,language:'bg'|'en',report?:'overview'|'energy'|'maintenance')=>
-    request<ChatExchange>('/chat',{method:'POST',body:JSON.stringify({message,tree_id,request_id,language,report})}),
+  chat:(message:string,tree_id:number|null,request_id:string,conversation_id:string|null,language:'bg'|'en',report?:'overview'|'energy'|'maintenance')=>
+    request<ChatExchange>('/chat',{method:'POST',body:JSON.stringify({message,tree_id,request_id,conversation_id,require_existing:conversation_id!==request_id,language,report})}),
 }

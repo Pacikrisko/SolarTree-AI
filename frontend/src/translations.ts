@@ -1,4 +1,13 @@
 export const english:Record<string,string> = {
+  "Разговорът е изтрит.": "This conversation was deleted.",
+  "Да се изтрият ли всички разговори в този профил?": "Delete all conversations in this account?",
+  "Да се изтрие ли този разговор?": "Delete this conversation?",
+  "Няма запазени разговори.": "No saved conversations.",
+  "Скрий списъка": "Hide conversations",
+  "Изчисти историята": "Clear history",
+  "Изтрий разговор": "Delete conversation",
+  "Нов чат": "New chat",
+  "Разговори": "Conversations",
   "Днес": "Today",
   "Свързано": "Connected",
   "Симулация": "Simulation",

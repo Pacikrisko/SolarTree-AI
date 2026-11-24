@@ -387,3 +387,34 @@
 .language-switch { display:inline-flex; align-items:center; justify-content:center; gap:5px; min-height:36px; padding:0 8px; flex:none; border:1px solid var(--app-edge); border-radius:10px; background:var(--app-surface); color:var(--app-text); font:inherit; font-size:12px; font-weight:700; cursor:pointer; }
 .signin .language-switch { margin-bottom:14px; background:var(--signin-input); border-color:var(--signin-border); color:var(--signin-ink); }
 @media(max-width:600px){ .top-actions .language-switch { padding:0 5px; } .top-actions .language-switch svg { display:none; } .top-heading { min-width:0; } .top-heading h1 {overflow:hidden; text-overflow:ellipsis; white-space:nowrap;} }
+
+.thread-tools {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.thread-tools .btn,.thread-clear {display:inline-flex;align-items:center;gap:7px}
+.thread-tools select {margin-left:auto;max-width:100%;padding:8px 12px;color:var(--app-text);background:var(--app-surface);border:1px solid var(--app-edge);border-radius:10px}
+.thread-workspace {position:relative;display:grid;grid-template-columns:minmax(0,1fr);align-items:start}
+.thread-workspace.list-open {grid-template-columns:clamp(178px,17vw,245px) minmax(0,1fr);gap:12px}
+.thread-workspace .assistant-layout {min-width:0;height:clamp(480px,calc(100dvh - 220px),780px)}
+.thread-list {display:flex;flex-direction:column;gap:12px;min-width:0;max-height:clamp(480px,calc(100dvh - 220px),780px);padding:14px 10px;border:1px solid var(--app-edge);border-radius:15px;background:var(--app-surface);color:var(--app-text)}
+.thread-list[hidden],.thread-scrim {display:none}
+.thread-list h3,.thread-rows>p {padding:0 6px;margin:0}
+.thread-rows {overflow-y:auto;min-height:0}
+.thread-row {display:flex;align-items:center;border-radius:9px;margin-bottom:3px}
+.thread-row:has([aria-current=true]) {background:color-mix(in srgb,#75ae72 18%,var(--app-surface))}
+.thread-choice,.thread-delete,.thread-clear {border:0;background:transparent;color:inherit;cursor:pointer}
+.thread-choice {flex:1;min-width:0;text-align:start;padding:9px 6px;display:grid;gap:4px}
+.thread-choice span,.thread-choice small {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.thread-choice small,.thread-clear,.thread-delete {color:var(--app-sub)}
+.thread-choice span {font-weight:600}
+.thread-delete {display:grid;place-items:center;width:36px;min-height:40px}
+.thread-clear {border-top:1px solid var(--app-edge);padding:12px 6px 2px}
+.thread-clear:hover,.thread-delete:hover {color:var(--app-text)}
+@media(max-width:1350px){
+  .list-open .assistant-layout {grid-template-columns:minmax(0,1fr)}
+  .list-open .assistant-context {display:none}
+}
+@media(max-width:999px){
+  .thread-workspace.list-open {grid-template-columns:minmax(0,1fr)}
+  .thread-list {position:absolute;z-index:3;inset:0 auto auto 0;width:min(295px,88%);max-height:100%;box-shadow:0 16px 40px #0003}
+  .thread-scrim {display:block;position:absolute;inset:0;z-index:2;border:0;border-radius:15px;background:#0005}
+}
+@media(max-width:480px){.thread-tools select{width:100%;margin-left:0}}

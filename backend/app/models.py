@@ -118,6 +118,7 @@ class ChatExchange(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), nullable=False)
     tree_id: Mapped[int | None] = mapped_column(ForeignKey('trees.id'), nullable=True)
+    conversation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     request_id: Mapped[str] = mapped_column(String(36))
     question: Mapped[str] = mapped_column(Text)
     reply: Mapped[str] = mapped_column(Text)

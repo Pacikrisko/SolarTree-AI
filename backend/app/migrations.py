@@ -4,6 +4,8 @@ from sqlalchemy import inspect, text
 def upgrade(engine):
     with engine.begin() as conn:
         inspector = inspect(conn)
+        if inspector.has_table('chat_exchanges') and 'conversation_id' not in {c['name'] for c in inspector.get_columns('chat_exchanges')}:
+            conn.execute(text('ALTER TABLE chat_exchanges ADD COLUMN conversation_id VARCHAR(36)'))
         if inspector.has_table('device_registrations'):
             if 'bound_user_id' not in {c['name'] for c in inspector.get_columns('device_registrations')}:
                 conn.execute(text('ALTER TABLE device_registrations ADD COLUMN bound_user_id INTEGER REFERENCES users(id)'))

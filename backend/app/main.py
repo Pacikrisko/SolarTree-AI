@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm import Session
-from sqlalchemy import select, desc, func, update, or_
+from sqlalchemy import select, desc, func, update, or_, delete
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from .database import Base, engine, get_db, SessionLocal
 from .models import User, Tree, Reading, Alert, Maintenance, DeviceRegistration, MobilePairSession, DeviceSample, ChatExchange
@@ -78,6 +78,8 @@ class HistoryTurn(BaseModel):
     role: Literal['user','assistant']
     content: str = Field(min_length=1,max_length=1500)
 class ChatIn(BaseModel):
+    conversation_id: UUID | None = None
+    require_existing: bool = False
     request_id: UUID | None = None
     language: Literal['bg','en'] = 'bg'
     message: str = Field(min_length=1,max_length=1600)
@@ -617,19 +619,50 @@ def device_ingest(code:str,metrics:ReadingIn,db:Session=Depends(get_db),x_device
     if is_urban_simulator(tree):
         raise HTTPException(status_code=409,detail='Този сериен номер е за виртуалния Urban 2K.')
     return save_reading(db,tree,metrics,'device')
-def exchanges_for(user_id,tree_id):
-    return select(ChatExchange).where(ChatExchange.user_id==user_id,ChatExchange.tree_id==tree_id)
+def thread_filters(user_id, tree_id, conversation_id):
+    return (ChatExchange.user_id == user_id, ChatExchange.tree_id == tree_id,
+            ChatExchange.conversation_id == (str(conversation_id) if conversation_id else None))
+
+def lock_chat_owner(db, user_id):
+    db.execute(select(User.id).where(User.id == user_id).with_for_update()).one()
+
+@app.get('/api/chat/conversations')
+def conversations(db: Session = Depends(get_db), user: User = Depends(logged_in)):
+    tree_ids = [tree.id for tree in accessible_trees(db, user)]
+    groups = (select(func.min(ChatExchange.id).label('first_id'), func.max(ChatExchange.id).label('last_id'))
+              .where(ChatExchange.user_id == user.id,
+                     or_(ChatExchange.tree_id.is_(None), ChatExchange.tree_id.in_(tree_ids)))
+              .group_by(ChatExchange.tree_id, ChatExchange.conversation_id).subquery())
+    rows = db.execute(select(ChatExchange.tree_id, ChatExchange.conversation_id, ChatExchange.question)
+                      .join(groups, ChatExchange.id == groups.c.first_id)
+                      .order_by(groups.c.last_id.desc()))
+    return [{'conversation_id': row.conversation_id, 'tree_id': row.tree_id, 'title': row.question[:100]} for row in rows]
+
+@app.delete('/api/chat/conversations')
+def clear_conversations(db: Session = Depends(get_db), user: User = Depends(logged_in)):
+    lock_chat_owner(db, user.id)
+    db.execute(delete(ChatExchange).where(ChatExchange.user_id == user.id))
+    db.commit()
+    return {'ok': True}
+
+@app.delete('/api/chat/conversations/selected')
+def delete_conversation(tree_id: int | None = None, conversation_id: UUID | None = None,
+                        db: Session = Depends(get_db), user: User = Depends(logged_in)):
+    lock_chat_owner(db, user.id)
+    db.execute(delete(ChatExchange).where(*thread_filters(user.id, tree_id, conversation_id)))
+    db.commit()
+    return {'ok': True}
 
 def exchange_json(row):
     return {'id':row.id,'question':row.question,'reply':row.reply,'mode':row.mode,'model':row.model,
             'tree_id':row.tree_id,'created_at':row.created_at.isoformat()+'Z'}
 
 @app.get('/api/chat/history')
-def chat_history(tree_id:int|None=None,before:int|None=Query(None,gt=0),
+def chat_history(tree_id:int|None=None,conversation_id:UUID|None=None,before:int|None=Query(None,gt=0),
                  db:Session=Depends(get_db),user:User=Depends(logged_in)):
     if tree_id is not None:
         find_tree(db,tree_id,user)
-    query=exchanges_for(user.id,tree_id)
+    query=select(ChatExchange).where(*thread_filters(user.id,tree_id,conversation_id))
     if before is not None:
         query=query.where(ChatExchange.id<before)
     rows=db.scalars(query.order_by(desc(ChatExchange.id)).limit(31)).all()
@@ -639,14 +672,21 @@ def chat_history(tree_id:int|None=None,before:int|None=Query(None,gt=0),
 def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     focus=find_tree(db,data.tree_id,user) if data.tree_id is not None else None
     request_id=str(data.request_id or uuid4())
+    conversation_id = str(data.conversation_id) if data.conversation_id else None
+    query = select(ChatExchange).where(*thread_filters(user.id, data.tree_id, conversation_id))
+    def check_conversation():
+        existing_thread = data.require_existing or (conversation_id and conversation_id != request_id)
+        if existing_thread and db.scalar(query.limit(1)) is None:
+            raise HTTPException(404, 'Разговорът е изтрит.')
     existing_query=select(ChatExchange).where(ChatExchange.user_id==user.id,ChatExchange.request_id==request_id)
     def existing_response(row):
-        if row.tree_id!=data.tree_id or row.question!=data.message:
+        if row.tree_id!=data.tree_id or row.conversation_id!=conversation_id or row.question!=data.message:
             raise HTTPException(status_code=409,detail='Тази заявка вече е използвана.')
         return exchange_json(row)
     existing=db.scalar(existing_query)
     if existing is not None:
         return existing_response(existing)
+    check_conversation()
     if not data.report and not assistant_provider():
         raise HTTPException(status_code=503,detail='Облачният чат очаква настройка на Cloudflare в Render. Можеш да използваш справките.')
     devices=[]
@@ -671,7 +711,7 @@ def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     if data.report:
         result={'reply':account_report(data.report,devices,data.language),'mode':'report'}
     else:
-        recent=db.scalars(exchanges_for(user.id,data.tree_id).order_by(desc(ChatExchange.id)).limit(4)).all()
+        recent=db.scalars(query.order_by(desc(ChatExchange.id)).limit(4)).all()
         history=[]
         for row in reversed(recent):
             history.extend([{'role':'user','content':row.question},{'role':'assistant','content':row.reply}])
@@ -684,7 +724,9 @@ def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
         except Exception:
             logging.getLogger(__name__).exception('Unexpected failure in /api/chat')
             raise HTTPException(status_code=502, detail='Неочаквана сървърна грешка при AI разговора. Виж терминала на FastAPI за подробности.')
-    exchange=ChatExchange(user_id=user.id,tree_id=data.tree_id,request_id=request_id,question=data.message,
+    lock_chat_owner(db, user.id)
+    check_conversation()
+    exchange=ChatExchange(conversation_id=conversation_id,user_id=user.id,tree_id=data.tree_id,request_id=request_id,question=data.message,
                           reply=result['reply'],mode=result['mode'],model=result.get('model'))
     db.add(exchange)
     try:

@@ -490,3 +490,40 @@ def test_google_verification_and_disabled_config(google,monkeypatch):
         monkeypatch.delenv('GOOGLE_CLIENT_ID')
         assert c.get('/api/auth/google/config').json()=={'client_id':None}
         assert sign_in(c).status_code==503
+
+
+def test_conversation_selection_context_and_deletion(monkeypatch):
+    from uuid import uuid4
+    with TestClient(app) as c:
+        def account(email):
+            password = 'PrivateChat123!'
+            assert c.post('/api/auth/register', json={'name':'Chat tester','email':email,'password':password}).is_success
+            return auth(c,email,password)
+        owner = account('threads-owner@example.org')
+        other = account('threads-other@example.org')
+        def send(headers, title, thread=None, first=False):
+            return c.post('/api/chat', headers=headers, json={'message':title,'report':'overview',
+                          'request_id':thread if first else str(uuid4()),'conversation_id':thread})
+        a, b = str(uuid4()), str(uuid4())
+        assert send(owner,'Previous history').is_success
+        assert send(owner,'Water',a,True).is_success
+        assert send(owner,'Power',b,True).is_success
+        assert send(other,'Independent history').is_success
+        assert c.get('/api/chat/conversations',headers=owner).json()[2]['conversation_id'] is None
+        captured = []
+        monkeypatch.setenv('OPENAI_API_KEY','test-only')
+        def answer(message,context,history):
+            captured.extend(history)
+            return {'reply':'Test reply','mode':'llm'}
+        monkeypatch.setattr('app.main.answer',answer)
+        assert c.post('/api/chat',headers=owner,json={'message':'Follow-up','conversation_id':a}).is_success
+        assert [turn['content'] for turn in captured if turn['role']=='user']==['Water']
+        params = {'conversation_id':a}
+        assert c.delete('/api/chat/conversations/selected',headers=other,params=params).is_success
+        assert len(c.get('/api/chat/history',headers=owner,params=params).json()['exchanges'])==2
+        assert c.delete('/api/chat/conversations/selected',headers=owner,params=params).is_success
+        assert send(owner,'Stale reply',a).status_code==404
+        assert [r['title'] for r in c.get('/api/chat/conversations',headers=owner).json()]==['Power','Previous history']
+        assert c.delete('/api/chat/conversations',headers=owner).is_success
+        assert c.get('/api/chat/conversations',headers=owner).json()==[]
+        assert c.get('/api/chat/conversations',headers=other).json()[0]['title']=='Independent history'
