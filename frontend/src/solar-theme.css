@@ -1,0 +1,128 @@
+/* SolarTree's brand palette on the Radix Grass and Sage theme. */
+.solar-theme {
+  --default-font-family: 'DM Sans', system-ui, sans-serif;
+  --heading-font-family: Manrope, var(--default-font-family);
+  --app-bg: color-mix(in srgb, var(--sage-2) 84%, #d4e8d7);
+  --app-surface: var(--color-panel-solid);
+  --app-text: var(--sage-12);
+  --app-sub: var(--sage-11);
+  --app-edge: var(--sage-6);
+  --app-accent: #246f4c;
+  --app-tint: var(--grass-3);
+  --app-radius: var(--radius-5);
+  --app-shadow: var(--shadow-2);
+  --ease-out: cubic-bezier(.22,1,.36,1);
+  height: 100%;
+}
+.solar-theme.dark {
+  --app-bg: #0e1916;
+  --app-surface: #192722;
+  --app-accent: #bced92;
+  --app-tint: #243b30;
+  --app-edge: #34473d;
+}
+.solar-theme .app-shell, .solar-theme .main-area {
+  background: radial-gradient(ellipse at 90% 0%,color-mix(in srgb,var(--app-accent) 7%,transparent),transparent 46%),var(--app-bg);
+}
+.solar-theme .panel, .solar-theme .thread-list, .solar-theme .tree-card {
+  border-color: var(--app-edge);
+  box-shadow: var(--shadow-2);
+}
+.solar-theme .topbar {
+  background: color-mix(in srgb,var(--app-surface) 94%,var(--app-tint));
+  border-color: var(--app-edge);
+}
+.solar-theme .system-state {color:var(--app-sub)}
+.solar-theme .dashboard .stat-top>span:first-child {font-size:12px;line-height:1.35}
+.solar-theme .dashboard .stat-sub {font-size:11px;line-height:1.45}
+.solar-theme .top-heading h1 { letter-spacing:-.045em; }
+.solar-theme .btn-primary, .solar-theme .rt-Button.rt-variant-solid {
+  background: var(--app-accent);
+  color: #fff;
+}
+.solar-theme.dark .btn-primary, .solar-theme.dark .rt-Button.rt-variant-solid { color:#14241a; }
+.solar-theme :where(button,input,select,textarea):focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 3px;
+}
+.solar-theme .modal, .solar-theme .notification-pop {
+  background: var(--app-surface);
+  border: 1px solid var(--app-edge);
+  border-radius: var(--radius-5);
+  box-shadow: var(--shadow-5);
+}
+.solar-theme .modal-backdrop {background:rgb(6 22 16 / .56)}
+.solar-theme .modal-form input, .solar-theme .modal-form select, .solar-theme .chat-input-box {
+  border-color:var(--app-edge);
+  border-radius:var(--radius-3);
+}
+.solar-theme .chat-input-box:focus-within {border-color:var(--app-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--app-accent) 14%,transparent)}
+.solar-theme .conversation-panel .chat-head {background:linear-gradient(110deg,var(--app-tint),var(--app-surface) 75%)}
+.solar-theme .thread-tools .rt-Button {min-height:38px;padding-inline:14px;font-weight:600;cursor:pointer}
+.solar-theme .thread-list h3 {font-size:16px;letter-spacing:-.035em}
+.solar-theme .thread-choice {padding:11px 9px}
+.solar-theme .thread-row:has([aria-current=true]) {box-shadow:inset 3px 0 var(--app-accent)}
+.solar-theme .dashboard .welcome-row {border-radius:var(--radius-6);box-shadow:var(--shadow-3)}
+.solar-theme .dashboard .stat-card {
+  isolation:isolate;
+  border:1px solid var(--app-edge);
+  border-radius:var(--radius-5);
+  background:var(--app-surface);
+  box-shadow:var(--shadow-2);
+}
+.solar-theme .stat-card.rt-Card::before {background:linear-gradient(135deg,color-mix(in srgb,var(--metric-accent) 9%,transparent),transparent 62%);box-shadow:none}
+.solar-theme .stat-card.rt-Card::after {pointer-events:none;inset:17px auto 17px 0;width:3px;border-radius:0 3px 3px 0;background:var(--metric-accent);box-shadow:none}
+.solar-theme .stat-icon {border-radius:var(--radius-3)}
+.solar-theme .thread-row:hover {background:var(--app-tint)}
+.solar-theme .signin {
+  background:radial-gradient(ellipse at 6% 5%,color-mix(in srgb,var(--app-accent) 17%,transparent),transparent 60%),var(--app-bg);
+}
+.solar-theme .signin-panel {border:1px solid var(--app-edge);box-shadow:var(--shadow-4);background:var(--app-surface)}
+.solar-theme .signin-input {border-color:var(--app-edge)}
+.solar-theme .signin-submit {height:auto;cursor:pointer;box-shadow:var(--shadow-2)}
+.solar-theme .signin-poster {box-shadow:var(--shadow-3)}
+@media(min-width:801px) {
+  .solar-theme .app-shell>.sidebar,.solar-theme .app-shell>.sidebar:hover {
+    --app-text:#eff8ed;
+    --app-sub:#b9cec1;
+    --app-accent:#c7edaa;
+    --app-tint:#264a39;
+    --app-edge:#365847;
+    color:var(--app-text);
+    background:linear-gradient(165deg,#173e2e,#102b22 50%,#0c231c);
+    border-right:1px solid #193c2d;
+  }
+  .solar-theme .sidebar .brand-copy strong,.solar-theme .sidebar .side-profile-name strong {color:#f1f6e9}
+  .solar-theme .sidebar .brand-copy small,.solar-theme .sidebar .side-profile-name span {color:#bfd0c3}
+  .solar-theme .sidebar .brand-copy strong span {color:#baea95}
+  .solar-theme .sidebar .sidebar-workspace {padding:9px 11px;margin-inline:0;background:#203f31;color:#d4e8d7;border:1px solid #3a5948;border-radius:var(--radius-3)}
+  .solar-theme .app-shell .sidebar .side-nav button {color:#c6d9cb;letter-spacing:.01em;font-size:13px}
+  .solar-theme .app-shell .sidebar .side-nav button.selected {background:#c9ecad;color:#173321;box-shadow:var(--shadow-2)}
+  .solar-theme .sidebar .side-nav button.selected svg {color:inherit}
+  .solar-theme .sidebar .side-nav button:not(.selected):hover {background:#224332;color:#fff}
+  .solar-theme .sidebar .side-profile>button:last-child {background:transparent;color:#c6d9cb}
+}
+@media(max-width:800px) {
+  .solar-theme .mobile-nav {background:var(--app-surface);box-shadow:var(--shadow-3)}
+  .solar-theme .mobile-nav button.active {background:var(--app-tint);color:var(--app-accent);border-radius:var(--radius-3)}
+}
+@media(prefers-reduced-motion:no-preference){
+  .solar-theme .page-body {animation:solar-arrive 280ms var(--ease-out) backwards}
+  .solar-theme .dashboard .stat-card {animation:solar-arrive 360ms var(--ease-out) backwards}
+  .solar-theme .dashboard .stat-card:nth-child(2) {animation-delay:40ms}
+  .solar-theme .dashboard .stat-card:nth-child(3) {animation-delay:80ms}
+  .solar-theme .dashboard .stat-card:nth-child(4) {animation-delay:120ms}
+  .solar-theme .modal-backdrop {animation:solar-fade 150ms ease-out}
+  .solar-theme .modal,.solar-theme .notification-pop {animation:solar-pop 220ms var(--ease-out)}
+  .solar-theme .thread-list:not([hidden]) {animation:solar-slide 210ms var(--ease-out)}
+  .solar-theme .chat-bubble:last-child,.solar-theme .chat-bubble:has(+ div:empty:last-child) {animation:solar-arrive 190ms var(--ease-out)}
+  .solar-theme .rt-Button,.solar-theme .rt-IconButton {transition:transform 150ms var(--ease-out),box-shadow 150ms ease-out}
+  .solar-theme :is(.rt-Button,.rt-IconButton,.btn):active:not(:disabled) {transform:scale(.97)}
+  @media(hover:hover){
+    .solar-theme .rt-Button:hover:not(:disabled),.solar-theme .rt-IconButton:hover:not(:disabled) {box-shadow:var(--shadow-3)}
+  }
+}
+@keyframes solar-arrive {from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes solar-fade {from{opacity:0}to{opacity:1}}
+@keyframes solar-pop {from{opacity:0;transform:translateY(6px) scale(.975)}to{opacity:1;transform:none}}
+@keyframes solar-slide {from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}

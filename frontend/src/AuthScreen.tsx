@@ -1,3 +1,4 @@
+import {Button} from '@radix-ui/themes'
 import {tr} from './language'
 import {LanguageButton} from './LanguageButton'
 import {useRef,useState, type FormEvent} from 'react'
@@ -118,10 +119,10 @@ export default function AuthScreen({onSuccess}: {onSuccess: (payload: TokenPaylo
                 {registering && !link && <small>{tr("Използвай поне 8 символа.")}</small>}
               </div>
               {error && <p className="signin-error" role="alert"><CircleAlert size={17} aria-hidden="true" />{tr(error)}</p>}
-              <button className="signin-submit" type="submit" disabled={busy}>
+              <Button variant="solid" size="3" className="signin-submit" type="submit" disabled={busy}>
                 {busy ? tr("Свързване…") : link?tr("Свържи и влез"):registering ? tr("Създай профил") : tr("Влез в приложението")}
                 {busy ? <LoaderCircle size={18} aria-hidden="true" /> : <ArrowRight size={18} aria-hidden="true" />}
-              </button>
+              </Button>
             </form>
             <p className="signin-switch">
               {link?null:registering ? tr("Вече имаш профил?") : tr("Нямаш профил?")}

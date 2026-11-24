@@ -1,3 +1,4 @@
+import {Button, Card, IconButton as RadixIconButton, Theme} from '@radix-ui/themes'
 import {LanguageButton,useLanguage} from './LanguageButton'
 import {tr,getLanguage,locale} from './language'
 import {useCallback,useEffect,useMemo,useRef,useState, type FormEvent, type ReactNode} from 'react'
@@ -27,7 +28,7 @@ const relativeDay=(s:Service)=>s.status==='overdue'?(getLanguage()==='en'?`${Mat
 function serviceColor(status:Service['status']){return status==='overdue'?'danger':status==='soon'?'amber':'good'}
 function initial(name:string){return name.trim().slice(0,1).toUpperCase()||'S'}
 function Logo({small=false}:{small?:boolean}){return <div className={`brand ${small?'brand-small':''}`}><div className="brand-symbol"><Leaf size={24} strokeWidth={2.5}/><span/></div>{!small&&<div className="brand-copy"><strong>SolarTree<span> AI</span></strong><small>INTELLIGENT ECOSYSTEM</small></div>}</div>}
-function IconButton({icon:Icon,title,onClick,badge,active=false}:{icon:LucideIcon;title:string;onClick:()=>void;badge?:boolean;active?:boolean}){return <button className={`icon-btn ${active?'active':''}`} type="button" aria-label={title} title={title} onClick={onClick}><Icon size={19}/>{badge&&<i className="mini-dot"/>}</button>}
+function IconButton({icon:Icon,title,onClick,badge,active=false}:{icon:LucideIcon;title:string;onClick:()=>void;badge?:boolean;active?:boolean}){return <RadixIconButton size="2" variant="surface" className={`icon-btn ${active?'active':''}`} type="button" aria-label={title} title={title} onClick={onClick}><Icon size={19}/>{badge&&<i className="mini-dot"/>}</RadixIconButton>}
 function StatePill({tree}:{tree:Tree}){const live=tree.connection==='live';return <span className={`state-pill ${live?'live':tree.connection==='model'?'virtual':'offline'}`}><i/>{live?tr("Свързано"):tree.connection==='model'?tr("Симулация"):tr("Няма връзка")}</span>}
 function SectionHeading({eyebrow,title,action}:{eyebrow?:string;title:string;action?:ReactNode}){return <div className="section-heading"><div>{eyebrow&&<span className="eyebrow">{eyebrow}</span>}<h2>{title}</h2></div>{action}</div>}
 function Panel({children,className='' }:{children:ReactNode;className?:string}){return <div className={`panel ${className}`}>{children}</div>}
@@ -96,6 +97,8 @@ const getNavItems=():{key:Page;icon:LucideIcon;label:string}[]=>[{key:'overview'
 const getPageNames=():Record<Page,string>=>({overview:tr("Преглед"),trees:tr("Моите дървета"),detail:tr("Детайли"),insights:tr("Анализи"),assistant:tr("AI асистент"),service:tr("Сервиз"),settings:tr("Настройки"),profile:tr("Профил")})
 
 export default function App(){
+  const [theme,setTheme]=useState<'dark'|'light'>(()=>localStorage.getItem('solartree_theme')==='dark'?'dark':'light')
+  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('solartree_theme',theme)},[theme])
   const [session,setSession]=useState(0)
   const endSession=useCallback(()=>{ setAuthToken(''); setSession(previous=>previous+1) },[])
   useEffect(()=>{
@@ -111,10 +114,12 @@ export default function App(){
       window.removeEventListener('storage',onStorage)
     }
   },[endSession])
-  return <Workspace key={session} logout={endSession}/>
+  return <Theme className="solar-theme" accentColor="grass" grayColor="sage" radius="large" panelBackground="solid" appearance={theme}>
+    <Workspace key={session} logout={endSession} theme={theme} toggleTheme={()=>setTheme(v=>v==='dark'?'light':'dark')}/>
+  </Theme>
 }
 
-function Workspace({logout}:{logout:()=>void}){
+function Workspace({logout,theme,toggleTheme}:{logout:()=>void;theme:'dark'|'light';toggleTheme:()=>void}){
   useLanguage()
   const navItems=getNavItems(),pageNames=getPageNames()
   const [bootError,setBootError]=useState(false)
@@ -124,8 +129,7 @@ function Workspace({logout}:{logout:()=>void}){
   const [user,setUser]=useState<User|null>(null),[ready,setReady]=useState(false),[trees,setTrees]=useState<Tree[]>([]),[alerts,setAlerts]=useState<Alert[]>([]),[services,setServices]=useState<Service[]>([]),[health,setHealth]=useState<Health|null>(null)
   const [page,setPage]=useState<Page>('overview'),[selectedId,setSelectedId]=useState<number|null>(null),[readings,setReadings]=useState<Reading[]>([]),[forecast,setForecast]=useState<Forecast|null>(null),[oxygen,setOxygen]=useState<OxygenHistory|null>(null)
   const [modal,setModal]=useState(false),[connectGuide,setConnectGuide]=useState(false),[notifOpen,setNotifOpen]=useState(false),[search,setSearch]=useState(''),[toast,setToast]=useState(''),[refreshIndex,setRefreshIndex]=useState(0),[busyAction,setBusyAction]=useState(false),[serviceAction,setServiceAction]=useState<{item:Service;mode:'complete'|'schedule'}|null>(null)
-  const [theme,setTheme]=useState<'dark'|'light'>(()=>localStorage.getItem('solartree_theme')==='dark'?'dark':'light')
-  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('solartree_theme',theme)},[theme])
+
   const selected=trees.find(t=>t.id===selectedId)||trees[0]||null
   const message=(msg:string)=>{setToast(msg);window.setTimeout(()=>setToast(''),4200)}
   const [accountStatus,setAccountStatus]=useState<'loading'|'ready'|'error'>('loading')
@@ -212,7 +216,7 @@ function Workspace({logout}:{logout:()=>void}){
       <div className="side-nav side-bottom"><button className={page==='settings'?'selected':''} onClick={()=>nav('settings')}><Settings2 size={19}/><span>{tr("Настройки")}</span></button></div>
       <div className="side-profile"><button className="profile-launch" title={tr("Отвори профила")} onClick={()=>nav('profile')}><span className="avatar">{initial(user.name)}</span><span className="side-profile-name"><strong>{user.name}</strong><span>{user.role==='municipality'?tr("Общински администратор"):tr("Частен собственик")}</span></span></button><button title={tr("Изход")} onClick={logout}><LogOut size={17}/></button></div>
     </aside>
-    <main className="main-area"><header className="topbar"><div className="top-heading"><span className="breadcrumb">SolarTree <ChevronRight size={13}/> {page==='detail'?tr("Дървета"):pageNames[page]}</span><h1>{page==='detail'?selected?.name||tr("Дърво"):pageNames[page]}</h1></div><div className="top-actions"><LanguageButton/><button className="theme-switch" type="button" onClick={()=>setTheme(v=>v==='dark'?'light':'dark')} aria-label={theme==='dark'?tr("Светла тема"):tr("Тъмна тема")} title={theme==='dark'?tr("Светла тема"):tr("Тъмна тема")}>{theme==='dark'?<Sun size={17}/>:<Moon size={17}/>}<span>{theme==='dark'?tr("Светла"):tr("Тъмна")}</span></button><div className="system-state">{accountStatus==='ready'&&<span className="pulse-dot"/>} {accountStatus==='ready'?tr("Сървърът е активен"):accountStatus==='loading'?tr("Свързване…"):tr("Проблем с обновяването")}</div><IconButton icon={RefreshCw} title={tr("Обнови данните")} onClick={()=>refresh().catch(e=>message((e as Error).message))}/><div className="notifications-wrap"><IconButton icon={Bell} title={tr("Известия")} badge={attention>0} active={notifOpen} onClick={()=>setNotifOpen(v=>!v)}/>{notifOpen&&<div className="notification-pop"><div className="popover-head"><strong>{tr("Известия")}</strong><span>{attention} {tr("активни")}</span></div>{attention===0?<div className="notification-empty"><CheckCircle2 size={20}/> {tr("Няма нови известия")}</div>:<div className="notif-list">{pendingService.slice(0,4).map(s=><button key={`s${s.id}`} onClick={()=>{setSelectedId(s.tree_id);nav('service')}}><span className="notif-icon amber"><Wrench size={17}/></span><span><strong>{tr(s.label)}</strong><small>{s.tree_name} · {relativeDay(s)}</small></span><ChevronRight size={15}/></button>)}{pendingAlerts.slice(0,4).map(a=><button key={`a${a.id}`} onClick={()=>{setSelectedId(a.tree_id);nav('service')}}><span className="notif-icon danger"><CircleAlert size={17}/></span><span><strong>{tr("Необичайни показания")}</strong><small>{a.tree_name}</small></span><ChevronRight size={15}/></button>)}</div>}<button className="popover-footer" onClick={()=>nav('service')}>{tr("Отвори сервизния център")} <ArrowRight size={14}/></button></div>}</div><button type="button" title={tr("Отвори моя профил")} aria-label={tr("Отвори моя профил")} className="top-avatar profile-avatar-button" onClick={()=>nav('profile')}>{initial(user.name)}</button></div></header>
+    <main className="main-area"><header className="topbar"><div className="top-heading"><span className="breadcrumb">SolarTree <ChevronRight size={13}/> {page==='detail'?tr("Дървета"):pageNames[page]}</span><h1>{page==='detail'?selected?.name||tr("Дърво"):pageNames[page]}</h1></div><div className="top-actions"><LanguageButton/><button className="theme-switch" type="button" onClick={toggleTheme} aria-label={theme==='dark'?tr("Светла тема"):tr("Тъмна тема")} title={theme==='dark'?tr("Светла тема"):tr("Тъмна тема")}>{theme==='dark'?<Sun size={17}/>:<Moon size={17}/>}<span>{theme==='dark'?tr("Светла"):tr("Тъмна")}</span></button><div className="system-state">{accountStatus==='ready'&&<span className="pulse-dot"/>} {accountStatus==='ready'?tr("Сървърът е активен"):accountStatus==='loading'?tr("Свързване…"):tr("Проблем с обновяването")}</div><IconButton icon={RefreshCw} title={tr("Обнови данните")} onClick={()=>refresh().catch(e=>message((e as Error).message))}/><div className="notifications-wrap"><IconButton icon={Bell} title={tr("Известия")} badge={attention>0} active={notifOpen} onClick={()=>setNotifOpen(v=>!v)}/>{notifOpen&&<div className="notification-pop"><div className="popover-head"><strong>{tr("Известия")}</strong><span>{attention} {tr("активни")}</span></div>{attention===0?<div className="notification-empty"><CheckCircle2 size={20}/> {tr("Няма нови известия")}</div>:<div className="notif-list">{pendingService.slice(0,4).map(s=><button key={`s${s.id}`} onClick={()=>{setSelectedId(s.tree_id);nav('service')}}><span className="notif-icon amber"><Wrench size={17}/></span><span><strong>{tr(s.label)}</strong><small>{s.tree_name} · {relativeDay(s)}</small></span><ChevronRight size={15}/></button>)}{pendingAlerts.slice(0,4).map(a=><button key={`a${a.id}`} onClick={()=>{setSelectedId(a.tree_id);nav('service')}}><span className="notif-icon danger"><CircleAlert size={17}/></span><span><strong>{tr("Необичайни показания")}</strong><small>{a.tree_name}</small></span><ChevronRight size={15}/></button>)}</div>}<button className="popover-footer" onClick={()=>nav('service')}>{tr("Отвори сервизния център")} <ArrowRight size={14}/></button></div>}</div><button type="button" title={tr("Отвори моя профил")} aria-label={tr("Отвори моя профил")} className="top-avatar profile-avatar-button" onClick={()=>nav('profile')}>{initial(user.name)}</button></div></header>
     <div className="main-scroll">
     {accountStatus==='error'&&<div role="alert" className="info-box">{tr("Данните на профила не се обновиха.")} <button className="btn btn-outline btn-small" onClick={()=>refresh().catch(()=>{})}>{tr("Опитай отново")}</button></div>}
     {refreshIndex===0&&accountStatus==='loading'&&<div role="status" className="info-box">{tr("Зареждане на данните…")}</div>}
@@ -249,7 +253,7 @@ function Workspace({logout}:{logout:()=>void}){
     {modal&&<NewTreeModal onClose={()=>setModal(false)} onSave={create} onPhoneAdded={phoneAdded}/>}{toast&&<div className="toast"><Info size={17}/>{toast}<button onClick={()=>setToast('')} aria-label={tr("Затвори")}><X size={15}/></button></div>}
   </div>
 }
-function StatCard({icon:Icon,label,value,sub,accent}:{icon:LucideIcon;label:string;value:string;sub:string;accent:string}){return <div className={`stat-card stat-${accent}`}><div className="stat-top"><span>{label}</span><span className={`stat-icon ${accent}`}><Icon size={19}/></span></div><strong>{value}</strong><div className="stat-sub"><span className={`stat-spark ${accent}`}/>{sub}</div></div>}
+function StatCard({icon:Icon,label,value,sub,accent}:{icon:LucideIcon;label:string;value:string;sub:string;accent:string}){return <Card size="3" variant="surface" className={`stat-card stat-${accent}`}><div className="stat-top"><span>{label}</span><span className={`stat-icon ${accent}`}><Icon size={19}/></span></div><strong>{value}</strong><div className="stat-sub"><span className={`stat-spark ${accent}`}/>{sub}</div></Card>}
 function requestId(){
   const bytes=crypto.getRandomValues(new Uint8Array(16))
   bytes[6]=(bytes[6]&15)|64
@@ -307,8 +311,8 @@ function AssistantPage({health,trees,selected,onSelect}:{health:Health|null;tree
   }
   return <div className="page-body assistant-page">
     <div className="thread-tools">
-      <button className="btn btn-outline" aria-expanded={open} aria-controls="thread-list" onClick={()=>setOpen(v=>!v)}><PanelLeft size={17}/>{tr('Разговори')}</button>
-      <button className="btn btn-outline" disabled={working||!active} onClick={()=>choose(draft(scopeId))}><Plus size={17}/>{tr('Нов чат')}</button>
+      <Button variant="surface" size="2" aria-expanded={open} aria-controls="thread-list" onClick={()=>setOpen(v=>!v)}><PanelLeft size={16}/>{tr('Разговори')}</Button>
+      <Button variant="solid" size="2" disabled={working||!active} onClick={()=>choose(draft(scopeId))}><Plus size={16}/>{tr('Нов чат')}</Button>
       <select disabled={working||!active} aria-label={tr('Обхват на разговора')} value={scopeId??''} onChange={e=>changeScope(e.target.value)}>
         <option value="">{tr('Всички мои дървета')}</option>{trees.map(t=><option value={t.id} key={t.id}>{t.name}</option>)}
       </select>

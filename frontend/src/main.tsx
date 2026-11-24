@@ -1,8 +1,13 @@
+import '@radix-ui/themes/tokens/base.css'
+import '@radix-ui/themes/tokens/colors/sage.css'
+import '@radix-ui/themes/tokens/colors/grass.css'
+import '@radix-ui/themes/components.css'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './styles.css'
 import './refresh.css'
+import './solar-theme.css'
 
 import {getLanguage} from './language'
 
