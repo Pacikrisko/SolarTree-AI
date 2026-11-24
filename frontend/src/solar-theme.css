@@ -98,7 +98,6 @@
   .solar-theme .sidebar .brand-copy strong,.solar-theme .sidebar .side-profile-name strong {color:var(--app-text)}
   .solar-theme .sidebar .brand-copy small,.solar-theme .sidebar .side-profile-name span {color:var(--app-sub)}
   .solar-theme .sidebar .brand-copy strong span {color:var(--app-accent)}
-  .solar-theme .sidebar .sidebar-workspace {padding:9px 11px;margin-inline:0;background:var(--app-surface);color:var(--app-sub);border:1px solid var(--app-edge);border-radius:var(--radius-3)}
   .solar-theme .app-shell .sidebar .side-nav button {color:var(--app-sub);letter-spacing:.01em;font-size:13px}
   .solar-theme .app-shell .sidebar .side-nav button.selected {background:var(--app-accent);color:var(--on-accent);box-shadow:var(--shadow-2)}
   .solar-theme .sidebar .side-nav button.selected svg {color:inherit}

@@ -213,7 +213,6 @@ function Workspace({logout,theme,toggleTheme}:{logout:()=>void;theme:'dark'|'lig
   if(!user)return <AuthScreen onSuccess={onAuth}/>
   return <div className="app-shell">
     <aside className="sidebar"><div className="side-brand"><Logo/></div>
-      <div className="sidebar-workspace"><span className="workspace-dot"/><strong>{user.role==='municipality'?tr("Общинска мрежа"):tr("Моето пространство")}</strong></div>
       <nav className="side-nav" aria-label={tr("Основна навигация")}>{navItems.map(({key,icon:Icon,label})=><button key={key} title={label} className={page===key||(page==='detail'&&key==='trees')?'selected':''} onClick={()=>nav(key)}><Icon size={19}/><span>{key==='trees'&&user.role==='municipality'?tr("Общински дървета"):label}</span>{key==='service'&&attention>0&&<i className="side-count">{attention}</i>}</button>)}</nav>
       <div className="sidebar-spacer"/>
       <div className="side-nav side-bottom"><button className={page==='settings'?'selected':''} onClick={()=>nav('settings')}><Settings2 size={19}/><span>{tr("Настройки")}</span></button></div>

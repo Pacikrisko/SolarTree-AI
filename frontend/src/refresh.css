@@ -16,8 +16,6 @@
   .app-shell .sidebar .profile-launch,.app-shell .sidebar:hover .profile-launch{justify-content:flex-start}
   .app-shell .sidebar .side-brand,.app-shell .sidebar:hover .side-brand{padding:3px 11px 30px}
 }
-.sidebar-workspace{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:700;color:var(--app-sub);margin:0 11px 19px;padding:12px 0;border-top:1px solid var(--app-edge);border-bottom:1px solid var(--app-edge)}
-.workspace-dot{width:7px;height:7px;border-radius:50%;background:var(--app-accent);box-shadow:0 0 0 3px rgba(104,180,117,.14)}
 .app-shell{background:var(--app-bg)}
 .main-area{background:var(--app-bg)}
 .topbar{height:76px;padding:14px 30px;background:var(--app-surface);border-color:var(--app-edge)}
