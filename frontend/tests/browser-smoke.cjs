@@ -101,7 +101,7 @@ async function main() {
     await nav.nth(1).click()
     await map.locator('button.btn-primary').click()
     page.once('dialog',dialog=>dialog.accept())
-    await page.locator('.btn-subtle-warning').click()
+    await page.getByRole('button',{name:/^(Remove tree|Премахни дървото)$/}).click()
     await page.waitForURL(/#\/trees$/)
     const after = await page.request.get(origin+'/api/trees',{headers:{Authorization:'Bearer '+token}})
     assert.deepEqual(await after.json(),[])
