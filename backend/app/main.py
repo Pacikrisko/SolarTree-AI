@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, desc, func, update, or_, delete
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from .database import Base, engine, get_db, SessionLocal
-from .models import User, Tree, Reading, Alert, Maintenance, DeviceRegistration, MobilePairSession, DeviceSample, ChatExchange
+from .models import TreeMember, PairInvite, User, Tree, Reading, Alert, Maintenance, DeviceRegistration, MobilePairSession, DeviceSample, ChatExchange
 from .seed import DEMO_MODE, seed_demo
 from .google_login import google_client_id, google_user, verified_claims
 from .password_reset import router as password_reset_router
@@ -127,18 +127,18 @@ def latest_reading(db: Session, tree: Tree):
 
 
 
-def can_read(user: User, tree: Tree) -> bool:
-    return tree.owner_id==user.id and tree.kind==('municipal' if user.role=='municipality' else 'private')
-def can_manage(user: User, tree: Tree) -> bool:
-    return can_read(user,tree)  # Only advisory UI and service records, NEVER direct plant safety control
+def can_read(db,user: User, tree: Tree) -> bool:
+    return (tree.owner_id==user.id or db.get(TreeMember,(tree.id,user.id)) is not None) and tree.kind==('municipal' if user.role=='municipality' else 'private')
+def can_manage(db,user: User, tree: Tree) -> bool:
+    return can_read(db,user,tree)  # Only advisory UI and service records, NEVER direct plant safety control
 
 def accessible_trees(db: Session, user: User):
     kind = 'municipal' if user.role=='municipality' else 'private'
-    return db.scalars(select(Tree).where(Tree.owner_id==user.id,Tree.kind==kind).order_by(Tree.id)).all()
+    return db.scalars(select(Tree).where(or_(Tree.owner_id==user.id,Tree.id.in_(select(TreeMember.tree_id).where(TreeMember.user_id==user.id))),Tree.kind==kind).order_by(Tree.id)).all()
 def find_tree(db: Session, tree_id: int, user: User) -> Tree:
     tree = db.get(Tree,tree_id)
     # Return 404 rather than revealing existence of an unauthorized tree.
-    if not tree or not can_read(user,tree):
+    if not tree or not can_read(db,user,tree):
         raise HTTPException(status_code=404,detail='Дървото не е намерено в твоя профил.')
     return tree
 
@@ -175,15 +175,31 @@ def logged_in(db:Session=Depends(get_db),authorization:str|None=Header(default=N
 def verify_pair(db: Session, code: str, claim: str, user: User) -> DeviceRegistration:
     reg=db.scalar(select(DeviceRegistration).where(DeviceRegistration.code==code.strip().upper()))
     # Identical errors for unrecognized/incorrect keys; never enumerate inventory from user input.
-    if not reg or not compare_digest(reg.claim_hash,sha256(claim.encode()).hexdigest()):
+    digest = sha256(claim.encode()).hexdigest()
+    invite = db.get(PairInvite,digest)
+    if not reg or not (compare_digest(reg.claim_hash,digest) or (invite and invite.registration_id==reg.id)):
         raise HTTPException(status_code=404,detail='Неуспешно сдвояване. Провери QR кода и кода за регистрация.')
-    if reg.claimed_tree_id is not None or reg.bound_user_id not in (None,user.id):
+    if reg.claimed_tree_id and reg.model_code in ('ST-IVAN-P1','ST-URBAN-2KW'):
+        members = db.scalars(select(TreeMember.user_id).where(TreeMember.tree_id==reg.claimed_tree_id)).all()
+        if user.id in members or reg.bound_user_id==user.id:
+            raise HTTPException(409,'Дървото вече е добавено в профила.')
+        if len(members)>=2:
+            raise HTTPException(409,'Дървото вече е добавено в три профила.')
+    elif reg.claimed_tree_id is not None or reg.bound_user_id not in (None,user.id):
         raise HTTPException(status_code=409,detail='Това устройство вече е регистрирано.')
     if (user.role=='municipality' and reg.kind!='municipal') or (user.role=='owner' and reg.kind!='private'):
         raise HTTPException(status_code=403,detail='Устройството не принадлежи към този тип профил.')
     return reg
 
-def attach_device(db: Session, reg: DeviceRegistration, user: User, tree: Tree):
+def attach_device(db: Session, reg: DeviceRegistration, user: User, tree: Tree, claim: str):
+    db.execute(update(DeviceRegistration).where(DeviceRegistration.id==reg.id).values(code=reg.code))
+    db.refresh(reg)
+    verify_pair(db,reg.code,claim,user)
+    db.execute(delete(PairInvite).where(PairInvite.registration_id==reg.id,PairInvite.digest==sha256(claim.encode()).hexdigest()))
+    if reg.claimed_tree_id:
+        db.add(TreeMember(tree_id=reg.claimed_tree_id,user_id=user.id))
+        db.flush()
+        return db.get(Tree,reg.claimed_tree_id)
     # Reserve the inventory row before inserting a tree, even for simultaneous claims.
     reserved=db.execute(update(DeviceRegistration).where(
         DeviceRegistration.id==reg.id, DeviceRegistration.claimed_tree_id.is_(None),
@@ -196,6 +212,7 @@ def attach_device(db: Session, reg: DeviceRegistration, user: User, tree: Tree):
     db.add(tree)
     db.flush()
     reg.claimed_tree_id=tree.id
+    return tree
 
 @app.get('/api/health')
 def health():
@@ -417,9 +434,10 @@ def phone_scan(token:str,data:ScanIn,db:Session=Depends(get_db)):
         raise
     tree=Tree(code=reg.code,model_code=reg.model_code,kind=reg.kind,owner_id=user.id,
               name=get_model(reg.model_code)['name'],location='Добавено чрез QR')
-    attach_device(db,reg,user,tree)
+    candidate=tree
+    tree=attach_device(db,reg,user,tree,claim)
     session.status='completed';session.tree_id=tree.id
-    if DEMO_MODE and not is_urban_simulator(tree): add_demo_urban_history(db,tree)
+    if DEMO_MODE and candidate is tree and not is_urban_simulator(tree): add_demo_urban_history(db,tree)
     db.commit();initialize_maintenance(db)
     return {'ok':True,'name':tree.name,'model':get_model(tree.model_code)['name']}
 
@@ -455,8 +473,9 @@ def create_tree(data:TreeIn,db:Session=Depends(get_db),user:User=Depends(logged_
     tree=Tree(name=data.name.strip(),code=reg.code,model_code=reg.model_code,kind=reg.kind,
               location=data.location.strip(),owner_id=user.id,
               lat=data.lat,lng=data.lng)
-    attach_device(db,reg,user,tree)
-    if DEMO_MODE and not is_urban_simulator(tree): add_demo_urban_history(db,tree)
+    candidate=tree
+    tree=attach_device(db,reg,user,tree,data.claim_token)
+    if DEMO_MODE and candidate is tree and not is_urban_simulator(tree): add_demo_urban_history(db,tree)
     db.commit();db.refresh(tree)
     initialize_maintenance(db)
     return to_tree(db,tree)
@@ -468,7 +487,7 @@ class CoordinatesIn(BaseModel):
 @app.patch('/api/trees/{tree_id}/coordinates')
 def set_coordinates(tree_id:int, data:CoordinatesIn, db:Session=Depends(get_db), user:User=Depends(logged_in)):
     tree=find_tree(db,tree_id,user)
-    if not can_manage(user,tree):
+    if not can_manage(db,user,tree):
         raise HTTPException(403, 'Нямаш достъп за промяна на местоположението.')
     tree.lat,tree.lng=data.lat,data.lng
     db.commit()
@@ -477,10 +496,22 @@ def set_coordinates(tree_id:int, data:CoordinatesIn, db:Session=Depends(get_db),
 
 @app.delete('/api/trees/{tree_id}')
 def remove_tree(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    db.scalar(select(DeviceRegistration).where(DeviceRegistration.claimed_tree_id==tree_id).with_for_update())
     tree=db.scalar(select(Tree).where(Tree.id==tree_id).with_for_update())
-    if tree is None or not can_manage(user,tree):
+    if tree is None or not can_manage(db,user,tree):
         raise HTTPException(status_code=404,detail='Дървото не е намерено в твоя профил.')
     registration=db.scalar(select(DeviceRegistration).where(DeviceRegistration.claimed_tree_id==tree.id))
+    member=db.get(TreeMember,(tree.id,user.id))
+    if member:
+        db.delete(member)
+        db.commit()
+        return {'ok':True}
+    successor=db.scalar(select(TreeMember).where(TreeMember.tree_id==tree.id).order_by(TreeMember.user_id))
+    if successor and registration:
+        tree.owner_id=registration.bound_user_id=successor.user_id
+        db.delete(successor)
+        db.commit()
+        return {'ok':True}
     if registration:
         registration.bound_user_id=user.id
         registration.claimed_tree_id=None
@@ -564,7 +595,7 @@ def all_maintenance(db:Session=Depends(get_db),user:User=Depends(logged_in)):
 @app.post('/api/trees/{tree_id}/maintenance/{component}/complete')
 def service_complete(tree_id:int,component:str,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     tree=find_tree(db,tree_id,user)
-    if not can_manage(user,tree) or component not in COMPONENTS:
+    if not can_manage(db,user,tree) or component not in COMPONENTS:
         raise HTTPException(status_code=404,detail='Непознат сервизен компонент.')
     record=db.scalar(select(Maintenance).where(Maintenance.tree_id==tree.id,Maintenance.component==component))
     if not record:

@@ -134,3 +134,14 @@ class ChatExchange(Base):
     mode: Mapped[str] = mapped_column(String(12))
     model: Mapped[str | None] = mapped_column(String(150), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+class TreeMember(Base):
+    __tablename__ = 'tree_members'
+    tree_id: Mapped[int] = mapped_column(ForeignKey('trees.id'), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), primary_key=True)
+
+
+class PairInvite(Base):
+    __tablename__ = 'pair_invites'
+    digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    registration_id: Mapped[int] = mapped_column(ForeignKey('device_registrations.id'))
