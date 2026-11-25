@@ -123,3 +123,50 @@
     linear-gradient(-44deg,transparent 49.91%,var(--stage-line) 50%,transparent 50.09%) top center/min(100%,1200px) 520px no-repeat,
     radial-gradient(ellipse 58% 430px at 50% 315px,var(--stage-glow),transparent 96%),var(--stage-canvas);
 }
+
+/* Static edge reflections keep type and icons sharp as the page scrolls. */
+@media not (forced-colors: active) {
+  .solar-theme {
+    --glass-body: color-mix(in srgb, var(--stage-pane) 80%, transparent);
+    --glass-shine: rgb(255 255 255 / .76);
+    --glass-reflex: rgb(101 182 151 / .18);
+    --glass-shadow: 0 8px 24px -17px rgb(20 58 43 / .48);
+  }
+  .solar-theme.dark {
+    --glass-body: color-mix(in srgb, var(--stage-pane) 84%, transparent);
+    --glass-shine: rgb(222 255 238 / .25);
+    --glass-reflex: rgb(120 222 181 / .13);
+    --glass-shadow: 0 10px 28px -16px rgb(0 8 5 / .72);
+  }
+  .solar-theme .stellar-entry .signin-card,
+  .solar-theme .dashboard .stat-grid,
+  .solar-theme .mobile-nav {
+    background:
+      radial-gradient(ellipse at 0 0, var(--glass-reflex), transparent 48%),
+      linear-gradient(155deg, var(--glass-body) 12%, var(--stage-pane) 72%, var(--glass-body));
+    border-color: var(--glass-rim);
+    box-shadow: inset 0 1px var(--glass-shine), inset 1px 0 var(--glass-light),
+                inset 0 -1px var(--glass-reflex), var(--glass-shadow);
+  }
+  .solar-theme .dashboard .stat-card {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--metric-accent) 10%, var(--stage-pane)),
+                      var(--stage-pane) 52%, color-mix(in srgb,var(--metric-accent) 5%, var(--stage-pane)));
+    box-shadow: inset 0 1px var(--glass-shine), inset 0 -1px var(--glass-reflex);
+  }
+  .solar-theme .stellar-hero .eyebrow,
+  .solar-theme .app-shell .sidebar .side-nav button.selected {
+    box-shadow: inset 0 1px var(--glass-shine), inset 0 -1px var(--glass-reflex), var(--glass-shadow);
+  }
+  @supports (backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px)) {
+    @media (prefers-reduced-transparency: no-preference) {
+      .solar-theme .stellar-entry .signin-card,
+      .solar-theme .mobile-nav {
+        -webkit-backdrop-filter: blur(9px) saturate(1.18);
+        backdrop-filter: blur(9px) saturate(1.18);
+      }
+    }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .solar-theme { --glass-body: var(--stage-pane) }
+  }
+}
