@@ -43,14 +43,28 @@ async function main() {
       for(const section of ['overview','trees','detail','insights','assistant','service','settings','profile']){
         const url = origin+'/#/'+section+'/'+tree.id
         await page.goto(url)
+        const histories = new Set()
+        const watch = req => {
+          const match = new URL(req.url()).pathname.match(/\/trees\/\d+\/(readings|forecast|oxygen)$/)
+          if(match) histories.add(match[1])
+        }
+        page.on('request',watch)
         await page.reload()
         await page.locator('.page-body').first().waitFor()
         await page.waitForLoadState('networkidle')
         assert.equal(new URL(page.url()).hash,new URL(url).hash)
+        page.off('request',watch)
+        const expected = {overview:['readings'],detail:['oxygen','readings'],insights:['forecast','oxygen']}
+        assert.deepEqual([...histories].sort(),expected[section] || [],section+' data requests')
         assert.ok(await page.locator('h1').first().innerText())
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'overflow '+section+' '+width)
       }
     }
+    const animation = () => page.locator('.page-body').first().evaluate(el=>getComputedStyle(el).animationName)
+    assert.match(await animation(),/section-arrive/)
+    await page.emulateMedia({reducedMotion:'reduce'})
+    assert.doesNotMatch(await animation(),/section-arrive/)
+    await page.emulateMedia({reducedMotion:'no-preference'})
     const theme = () => page.locator('html').getAttribute('data-theme')
     const before = await theme()
     await page.locator('.theme-switch:visible').first().click()
@@ -97,6 +111,26 @@ async function main() {
     await page.locator('#signin-password').fill('Test-password-7249')
     await page.locator('.signin-submit').click()
     await page.locator('.dashboard').waitFor()
+    // The hosting workflow runs this test against a disposable PostgreSQL instance.
+    require('node:child_process').execFileSync('psql',[
+      'postgresql://postgres:ci_only@127.0.0.1:5432/postgres','-v','ON_ERROR_STOP=1','-c',
+      "UPDATE users SET is_admin=true WHERE email='browser@example.com'",
+    ])
+    await page.goto(origin+'/?browser-check=admin#/admin')
+    await page.locator('.page-body table').waitFor()
+    await page.locator('.page-body > button.btn-primary').click()
+    const downloads = page.locator('.page-body a[download]')
+    await downloads.first().waitFor()
+    for(const link of await downloads.all()){
+      const [download] = await Promise.all([page.waitForEvent('download'),link.click()])
+      assert.equal(await download.failure(),null)
+    }
+    const keysPanel = page.locator('.page-body section').filter({has:page.locator('a[download]')})
+    await keysPanel.locator('button').click()
+    for(const width of [390,768,1440]){
+      await page.setViewportSize({width,height:900})
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'admin overflow '+width)
+    }
     assert.deepEqual(errors,[])
   } finally { await browser.close() }
 }
