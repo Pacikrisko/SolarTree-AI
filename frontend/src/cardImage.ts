@@ -1,0 +1,10 @@
+const cardArt: Record<string,string> = {
+  'IVAN-TREE-0001':'prototype',
+  'URBAN-TREE-0001':'urban-straight',
+  'URBAN-TREE-0002':'urban-curved',
+}
+
+export function cardImage(code:string){
+  const name=cardArt[code]
+  return name ? `/tree-cards/${name}.png` : null
+}

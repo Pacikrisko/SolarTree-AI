@@ -1,3 +1,4 @@
+import {cardImage} from './cardImage'
 import {useEffect,useState} from 'react'
 import type {Tree} from './types'
 import {api} from './api'
@@ -12,16 +13,12 @@ function OfficialThumbnail({tree}:{tree:Tree}){
   return <div className="official-tree-thumb">{url ? tree.media_kind==='video' ?<video src={url} muted loop playsInline autoPlay/>:<img src={url} alt={tree.model.name}/> :<SolarTreeMark size={88}/>}</div>
 }
 
-const cardArt: Record<string,string> = {
-  'IVAN-TREE-0001':'prototype',
-  'URBAN-TREE-0001':'urban-straight',
-  'URBAN-TREE-0002':'urban-curved',
-}
+
 
 export default function DeviceThumbnail({tree}:{tree:Tree}){
-  const art=cardArt[tree.code]
+  const art=cardImage(tree.code)
   if(!art)return <OfficialThumbnail tree={tree}/>
   return <div className="official-tree-thumb">
-    <img src={'/tree-cards/'+art+'.png'} alt={tree.model.name} style={{objectFit:'contain',padding:'6px',boxSizing:'border-box',background:'transparent'}}/>
+    <img src={art} alt={tree.model.name} style={{objectFit:'contain',padding:'6px',boxSizing:'border-box',background:'transparent'}}/>
   </div>
 }

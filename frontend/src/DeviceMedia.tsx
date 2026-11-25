@@ -1,3 +1,4 @@
+import {cardImage} from './cardImage'
 import {tr} from './language'
 import {useEffect,useState} from 'react'
 import {ImageOff} from 'lucide-react'
@@ -6,7 +7,8 @@ import {api} from './api'
 import SolarTreeMark from './SolarTreeMark'
 
 export default function DeviceMedia({tree,compact=false}:{tree:Tree|null;compact?:boolean;onChanged?:()=>Promise<void>}){
-  const artwork = !compact && tree && ['IVAN-TREE-0001','URBAN-TREE-0001','URBAN-TREE-0002'].includes(tree.code) ? `/tree-details/${tree.code}.webp` : null
+  const card = tree && cardImage(tree.code)
+  const artwork = card && tree ? (compact ? card : `/tree-details/${tree.code}.webp`) : null
   const [url,setUrl]=useState<string|null>(null)
   const [error,setError]=useState(false)
   useEffect(()=>{
@@ -20,8 +22,8 @@ export default function DeviceMedia({tree,compact=false}:{tree:Tree|null;compact
     }).catch(()=>{if(active)setError(true)})
     return()=>{active=false;if(objectUrl)URL.revokeObjectURL(objectUrl)}
   },[tree?.id,tree?.media_kind,artwork])
-  if(artwork && tree)return <div className="device-media official-device-media" style={{background:"radial-gradient(ellipse at 50% 52%, color-mix(in srgb, var(--app-accent) 17%, transparent), transparent 72%), var(--app-surface)"}}>
-    <img className="device-media-content" src={artwork} alt={tree.name} style={{objectFit:"contain",background:"transparent",padding:"clamp(12px, 3vw, 36px)",boxSizing:"border-box",width:"100%",height:"clamp(320px, 60vh, 720px)"}}/>
+  if(artwork && tree)return <div className={`device-media official-device-media ${compact ? "device-media-compact" : ""}`} style={{background:"radial-gradient(ellipse at 50% 52%, color-mix(in srgb, var(--app-accent) 17%, transparent), transparent 72%), var(--app-surface)"}}>
+    <img className="device-media-content" src={artwork} alt={tree.name} style={{objectFit:"contain",background:"transparent",padding:"clamp(12px, 3vw, 36px)",boxSizing:"border-box",width:"100%",height:compact ? "100%" : "clamp(320px, 60vh, 720px)"}}/>
     <div className="official-media-caption">{tree.model.name}</div>
   </div>
   return <div className={`device-media ${compact?'device-media-compact':''} official-device-media`}>
