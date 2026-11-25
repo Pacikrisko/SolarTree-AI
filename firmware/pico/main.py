@@ -30,7 +30,7 @@ button.switch_to_input(pull=digitalio.Pull.UP)
 
 # LCD1602
 lcd = Screen(i2c)
-lcd.set_rgb(100,0, 0)
+lcd.set_rgb(0,90,6)
 
 # BME280
 bme280 = adafruit_bme280.Adafruit_BME280_I2C(i2c)
