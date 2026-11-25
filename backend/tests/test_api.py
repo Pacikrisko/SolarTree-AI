@@ -595,3 +595,33 @@ def test_password_recovery(monkeypatch):
         monkeypatch.setattr(recovery,'utcnow',lambda:later)
         payload['token'] = messages[-1]['text'].split('https://example.org/#/reset-password/')[1]
         assert c.post('/api/auth/reset-password',json=payload).status_code == 400
+
+def test_three_profile_limit_and_owner_departure():
+    from hashlib import sha256
+    from app.database import SessionLocal
+    from app.models import DeviceRegistration
+    code='SHARED-TEST-3'
+    token='test-claim-sharing-3'
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            db.add(DeviceRegistration(code=code,model_code='ST-URBAN-2KW',kind='private',
+                claim_hash=sha256(token.encode()).hexdigest(),telemetry_hash='test'))
+            db.commit()
+        profiles=[]
+        for i in range(4):
+            account=c.post('/api/auth/register',json={'name':f'Share {i}','email':f'share{i}@example.org','password':'TestPassword654'}).json()
+            profiles.append({'Authorization':'Bearer '+account['access_token']})
+        payload={'name':'Shared Urban','location':'Test location','code':code,'claim_token':token,'lat':None,'lng':None}
+        def add(headers):
+            return c.post('/api/trees',headers=headers,json=payload)
+        first=add(profiles[0])
+        assert first.status_code==201, first.text
+        tree_id=first.json()['id']
+        for profile in profiles[1:3]:
+            assert add(profile).json()['id']==tree_id
+        assert add(profiles[3]).status_code==409
+        url=f'/api/trees/{tree_id}'
+        assert c.delete(url,headers=profiles[0]).status_code==200
+        assert c.get(url,headers=profiles[0]).status_code==404
+        assert c.get(url,headers=profiles[1]).status_code==200
+        assert add(profiles[3]).json()['id']==tree_id
