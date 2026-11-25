@@ -42,7 +42,7 @@
 .solar-theme .stellar-hero h2 {
   line-height:1.2;
   letter-spacing:-.02em;
-  padding:.06em .08em .1em;
+  padding:.13em .08em .1em;
 }
 .entry-heading p,.stellar-hero p {margin:14px auto 0;max-width:46ch;color:var(--app-sub);font-size:clamp(14px,1.3vw,17px);line-height:1.55;text-wrap:balance}
 .solar-theme .stellar-entry .signin-card {
