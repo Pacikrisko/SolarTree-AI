@@ -39,6 +39,11 @@
   background:linear-gradient(110deg,var(--stage-title) 25%,var(--stage-end) 85%);
   background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;
 }
+.solar-theme .stellar-hero h2 {
+  line-height:1.2;
+  letter-spacing:-.02em;
+  padding:.06em .08em .1em;
+}
 .entry-heading p,.stellar-hero p {margin:14px auto 0;max-width:46ch;color:var(--app-sub);font-size:clamp(14px,1.3vw,17px);line-height:1.55;text-wrap:balance}
 .solar-theme .stellar-entry .signin-card {
   width:min(970px,calc(100% - 48px));margin:auto;padding:8px;gap:0;align-items:stretch;
