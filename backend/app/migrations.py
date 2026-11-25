@@ -4,7 +4,9 @@ from sqlalchemy import inspect, text
 def upgrade(engine):
     with engine.begin() as conn:
         inspector = inspect(conn)
-        if inspector.has_table('trees'):
+        if inspector.has_table('trees') and {'code', 'location', 'lat', 'lng'}.issubset(
+            column['name'] for column in inspector.get_columns('trees')
+        ):
             conn.execute(text("""UPDATE trees SET location='Stara Zagora', lat=42.4258, lng=25.6345
                 WHERE code='IVAN-TREE-0001' AND lat IS NULL AND lng IS NULL"""))
         if inspector.has_table("users") and "session_version" not in {c["name"] for c in inspector.get_columns("users")}:
