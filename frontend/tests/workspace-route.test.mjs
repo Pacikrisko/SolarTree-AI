@@ -5,6 +5,7 @@ import {parseWorkspaceRoute,goToSection} from '../src/workspaceRoute.ts'
 test('section links restore the page and selected tree',()=>{
   assert.deepEqual(parseWorkspaceRoute('#/insights/2'),{page:'insights',treeId:2})
   assert.deepEqual(parseWorkspaceRoute('#/settings'),{page:'settings',treeId:null})
+  assert.deepEqual(parseWorkspaceRoute('#/missing/27'),{page:'overview',treeId:null})
   assert.deepEqual(parseWorkspaceRoute(''),{page:'overview',treeId:null})
   assert.deepEqual(parseWorkspaceRoute('#/detail/bad'),{page:'overview',treeId:null})
 })

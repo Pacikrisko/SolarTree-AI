@@ -65,6 +65,13 @@ jobs:
             http://127.0.0.1:10000/api/health | jq -e '.ok == true and .simulation_enabled == false'
           curl -fsS http://127.0.0.1:10000/ | grep -q 'id="root"'
           docker exec solartree python provision_device.py --help
+      - name: Exercise the production UI in Chrome
+        run: |
+          npm install --prefix "$RUNNER_TEMP/browser" playwright-core@1.56.1 --no-audit --no-fund
+          export BROWSER_MODULE="$RUNNER_TEMP/browser/node_modules/playwright-core"
+          export CHROME_PATH="$(command -v google-chrome)"
+          export TEST_CLAIM="$(docker exec solartree python provision_device.py --code CI-TREE --model ST-URBAN-2KW --kind private | sed -n 's/^Pairing QR contents: STREE1|CI-TREE|//p')"
+          node frontend/tests/browser-smoke.cjs
       - name: Show startup logs on failure
         if: failure()
         run: docker logs solartree || true

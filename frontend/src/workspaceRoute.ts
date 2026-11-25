@@ -17,7 +17,8 @@ function subscribe(update:()=>void){
 }
 export function parseWorkspaceRoute(hash:string){
   const match=/^#\/([a-z]+)(?:\/([1-9]\d*))?$/.exec(hash)
-  const page:Page=match && Object.prototype.hasOwnProperty.call(pages,match[1]) ? match[1] as Page : 'overview'
+  if(!match || !Object.prototype.hasOwnProperty.call(pages,match[1]))return {page:'overview' as const,treeId:null}
+  const page=match[1] as Page
   const id=Number(match?.[2])
   return {page,treeId:Number.isSafeInteger(id)&&id>0?id:null}
 }
