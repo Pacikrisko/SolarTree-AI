@@ -69,14 +69,21 @@ export default function AuthScreen({onSuccess}: {onSuccess: (payload: TokenPaylo
   }
 
   return (
-    <main className="signin">
+    <main className="signin stellar-entry">
+      <div className="entry-top"><div className="entry-top-inner"><div className="signin-brand" aria-label="SolarTree AI">
+            <span className="signin-mark" aria-hidden="true"><SolarTreeMark size={28} /></span>
+            <span>SolarTree <b>AI</b></span>
+          </div><LanguageButton/></div></div>
+      <div className="entry-stage">
+        <header className="entry-heading" key={registering ? "register" : "login"}>
+              <h1 id="signin-title">{link?tr('Свържи профила си с Google'):registering ? tr("Създай профил") : tr("Вход в профила")}</h1>
+              <p>{link?tr('За да запазиш дърветата и разговорите си, потвърди паролата си за SolarTree.'):registering ? tr("С един профил можеш да добавяш и следиш своите соларни дървета.") : tr("Влез, за да следиш устройствата и измерванията си.")}</p>
+            </header>
+      </div>
       <div className="signin-card">
         <figure className="signin-poster">
           <img className="signin-art" src="/solar-concept.jpg" alt="" width="1000" height="1000" />
-          <div className="signin-brand" aria-label="SolarTree AI">
-            <span className="signin-mark" aria-hidden="true"><SolarTreeMark size={28} /></span>
-            <span>SolarTree <b>AI</b></span>
-          </div>
+
           <figcaption>
             <span>{tr("Концептуална визуализация")}</span>
             <strong>{tr("Соларно дърво")}</strong>
@@ -84,11 +91,8 @@ export default function AuthScreen({onSuccess}: {onSuccess: (payload: TokenPaylo
         </figure>
         <section className="signin-panel" aria-labelledby="signin-title">
           <div className="signin-content">
-            <LanguageButton/>
-            <header key={registering ? "register" : "login"}>
-              <h1 id="signin-title">{link?tr('Свържи профила си с Google'):registering ? tr("Създай профил") : tr("Вход в профила")}</h1>
-              <p>{link?tr('За да запазиш дърветата и разговорите си, потвърди паролата си за SolarTree.'):registering ? tr("С един профил можеш да добавяш и следиш своите соларни дървета.") : tr("Влез, за да следиш устройствата и измерванията си.")}</p>
-            </header>
+
+
             {!link&&<GoogleSignIn disabled={busy} onCredential={credential=>void submitGoogle(credential)}/>}
             <form onSubmit={submit} className="signin-form" aria-busy={busy}>
               {registering && !link && (

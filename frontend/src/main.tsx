@@ -8,6 +8,7 @@ import App from './App'
 import './styles.css'
 import './refresh.css'
 import './solar-theme.css'
+import './stellar-layout.css'
 
 import {getLanguage} from './language'
 
