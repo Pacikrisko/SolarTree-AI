@@ -102,7 +102,7 @@ class SimIn(BaseModel):
     mode: Literal['normal','anomaly']='normal'
 
 def to_user(user: User):
-    return {'id':user.id,'name':user.name,'email':user.email,'role':user.role,'has_password':bool(user.password_hash)}
+    return {'id':user.id,'name':user.name,'email':user.email,'role':user.role,'is_admin':user.is_admin,'has_password':bool(user.password_hash)}
 def to_reading(reading: Reading):
     return {'id':reading.id,'tree_id':reading.tree_id,'time':reading.time.isoformat()+'Z',
             'power_w':reading.power_w,'temperature_c':reading.temperature_c,
@@ -265,6 +265,44 @@ def register(data:RegisterIn,db:Session=Depends(get_db)):
         db.rollback()
         logging.exception('SolarTree registration unexpected error')
         raise HTTPException(status_code=500,detail='Неуспешно създаване на профил. Виж терминала на FastAPI за подробности.') from None
+def require_admin(user: User = Depends(logged_in)):
+    if not user.is_admin:
+        raise HTTPException(403, 'Изисква се администраторски достъп.')
+    return user
+
+
+@app.get('/api/admin/devices')
+def admin_devices(offset: int = Query(0, ge=0), db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    latest_sample = select(func.max(DeviceSample.time)).where(
+        DeviceSample.tree_id == DeviceRegistration.claimed_tree_id
+    ).correlate(DeviceRegistration).scalar_subquery()
+    rows = db.execute(select(DeviceRegistration, latest_sample).order_by(
+        DeviceRegistration.id.desc()).limit(51).offset(offset)).all()
+    return {'has_more': len(rows) > 50, 'devices': [
+        {'code': reg.code, 'model': reg.model_code,
+         'status': 'active' if reg.claimed_tree_id else 'reserved' if reg.bound_user_id else 'free',
+         'sample_time': stamp.isoformat() + 'Z' if stamp else None}
+        for reg, stamp in rows[:50]
+    ]}
+
+
+@app.post('/api/admin/simulators', status_code=201)
+def admin_simulator(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    code = 'URBAN-SIM-' + secrets.token_hex(8).upper()
+    claim = secrets.token_urlsafe(32)
+    telemetry = secrets.token_urlsafe(40)
+    payload = f'STREE1|{code}|{claim}'
+    png = io.BytesIO()
+    qrcode.make(payload).save(png, format='PNG')
+    db.add(DeviceRegistration(code=code, model_code='ST-URBAN-2KW', kind='private',
+           claim_hash=sha256(claim.encode()).hexdigest(), telemetry_hash=sha256(telemetry.encode()).hexdigest()))
+    db.commit()
+    from fastapi.responses import JSONResponse
+    return JSONResponse({'code': code, 'claim': claim, 'telemetry': telemetry,
+                         'qr': 'data:image/png;base64,' + base64.b64encode(png.getvalue()).decode()},
+                        status_code=201, headers={'Cache-Control': 'no-store'})
+
+
 @app.get('/api/auth/me')
 def me(user:User=Depends(logged_in)):
     return to_user(user)

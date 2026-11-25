@@ -532,3 +532,29 @@ def test_conversation_selection_context_and_deletion(monkeypatch):
         assert c.delete('/api/chat/conversations',headers=owner).is_success
         assert c.get('/api/chat/conversations',headers=owner).json()==[]
         assert c.get('/api/chat/conversations',headers=other).json()[0]['title']=='Independent history'
+
+
+def test_admin_simulator_lifecycle():
+    from sqlalchemy import select
+    from app.database import SessionLocal
+    from app.models import User
+    with TestClient(app) as c:
+        result = c.post('/api/auth/register',json={'name':'Simulator staff','email':'simadmin@example.org','password':'TestPassword42','is_admin':True})
+        assert result.status_code in (200,201)
+        headers = auth(c,'simadmin@example.org','TestPassword42')
+        assert c.get('/api/admin/devices').status_code == 401
+        assert c.post('/api/admin/simulators',headers=headers).status_code == 403
+        with SessionLocal() as db:
+            user = db.scalar(select(User).where(User.email=='simadmin@example.org'))
+            user.is_admin = True
+            db.commit()
+        created = c.post('/api/admin/simulators', headers=headers)
+        assert created.status_code == 201 and created.headers['cache-control'] == 'no-store'
+        keys = created.json()
+        assert keys['qr'].startswith('data:image/png;base64,')
+        pair = c.post('/api/trees', headers=headers,json={'name':'Test urban','location':'Test city','code':keys['code'],'claim_token':keys['claim']})
+        assert pair.status_code == 201, pair.text
+        assert c.post('/api/device/'+keys['code']+'/sensors',headers={'X-Device-Key':keys['telemetry']},json={'temperature_c':20}).status_code == 409
+        listing = c.get('/api/admin/devices', headers=headers)
+        assert any(row['code']==keys['code'] and row['status']=='active' for row in listing.json()['devices'])
+        assert keys['claim'] not in listing.text and keys['telemetry'] not in listing.text

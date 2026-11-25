@@ -41,7 +41,12 @@ function threadParams(treeId:number|null, conversationId:string|null) {
   return params
 }
 
+export interface AdminDevice {code:string;model:string;status:'active'|'reserved'|'free';sample_time:string|null}
+export interface SimulatorKeys {code:string;claim:string;telemetry:string;qr:string}
+
 export const api={
+  adminDevices:(offset:number)=>request<{devices:AdminDevice[];has_more:boolean}>(`/admin/devices?offset=${offset}`),
+  createSimulator:()=>request<SimulatorKeys>('/admin/simulators',{method:'POST'}),
   health:()=>request<Health>('/health'),
   googleConfig:()=>request<{client_id:string|null}>('/auth/google/config'),
   googleLogin:(credential:string,password?:string)=>request<TokenPayload|{requires_password:true;email:string}>('/auth/google',{

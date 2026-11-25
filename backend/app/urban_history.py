@@ -15,7 +15,7 @@ URBAN_DAYLIGHT_HOURS = 12
 
 
 def is_urban_simulator(tree: Tree) -> bool:
-    return tree.code in ('URBAN-TREE-0001', 'URBAN-TREE-0002') and tree.model_code == 'ST-URBAN-2KW'
+    return (tree.code in ('URBAN-TREE-0001', 'URBAN-TREE-0002') or tree.code.startswith('URBAN-SIM-')) and tree.model_code == 'ST-URBAN-2KW'
 
 
 def urban_sample(tree: Tree, when: datetime):
