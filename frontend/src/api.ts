@@ -45,6 +45,7 @@ export interface AdminDevice {code:string;model:string;status:'active'|'reserved
 export interface SimulatorKeys {code:string;claim:string;telemetry:string;qr:string}
 
 export const api={
+  setCoordinates:(id:number,lat:number,lng:number)=>request<{ok:boolean}>(`/trees/${id}/coordinates`,{method:'PATCH',body:JSON.stringify({lat,lng})}),
   adminDevices:(offset:number)=>request<{devices:AdminDevice[];has_more:boolean}>(`/admin/devices?offset=${offset}`),
   createSimulator:()=>request<SimulatorKeys>('/admin/simulators',{method:'POST'}),
   health:()=>request<Health>('/health'),

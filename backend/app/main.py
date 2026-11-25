@@ -191,6 +191,8 @@ def attach_device(db: Session, reg: DeviceRegistration, user: User, tree: Tree):
     ).values(bound_user_id=user.id))
     if reserved.rowcount!=1:
         raise HTTPException(status_code=409,detail='Това устройство вече е регистрирано.')
+    if tree.code == 'IVAN-TREE-0001' and tree.lat is None and tree.lng is None:
+        tree.lat, tree.lng, tree.location = 42.4258, 25.6345, 'Stara Zagora'
     db.add(tree)
     db.flush()
     reg.claimed_tree_id=tree.id
@@ -458,6 +460,21 @@ def create_tree(data:TreeIn,db:Session=Depends(get_db),user:User=Depends(logged_
     db.commit();db.refresh(tree)
     initialize_maintenance(db)
     return to_tree(db,tree)
+class CoordinatesIn(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
+@app.patch('/api/trees/{tree_id}/coordinates')
+def set_coordinates(tree_id:int, data:CoordinatesIn, db:Session=Depends(get_db), user:User=Depends(logged_in)):
+    tree=find_tree(db,tree_id,user)
+    if not can_manage(user,tree):
+        raise HTTPException(403, 'Нямаш достъп за промяна на местоположението.')
+    tree.lat,tree.lng=data.lat,data.lng
+    db.commit()
+    return {'ok':True}
+
+
 @app.delete('/api/trees/{tree_id}')
 def remove_tree(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     tree=db.scalar(select(Tree).where(Tree.id==tree_id).with_for_update())

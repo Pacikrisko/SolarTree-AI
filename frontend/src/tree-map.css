@@ -1,0 +1,13 @@
+.solar-theme .tree-map{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(230px,1fr);padding:0;overflow:hidden;margin-bottom:20px}
+.tree-map-art{display:grid;place-items:center;background:radial-gradient(ellipse at center,var(--stage-glow),var(--stage-pane));padding:12px}
+.tree-map-art svg{width:100%;max-height:360px;color:var(--app-text)}
+.tree-map-land{fill:var(--app-tint);stroke:var(--app-accent);stroke-width:1.5;stroke-linejoin:round}
+.tree-map-pin{cursor:pointer;fill:var(--app-accent)}
+.tree-map-pin path{stroke:var(--stage-pane);stroke-width:1.5}
+.tree-map-pin[data-selected=true] path{fill:#b15027;stroke:white;stroke-width:2}
+.tree-map-info{padding:clamp(16px,3vw,32px);display:grid;align-content:center;gap:10px;min-width:0}
+.tree-map-info h3{display:flex;align-items:center;gap:8px}
+.tree-map-info label{display:grid;gap:5px;color:var(--app-sub)}
+.tree-map-info select,.tree-map-info input{padding:.6rem;width:100%;min-width:0;border:1px solid var(--app-edge);border-radius:8px;background:var(--stage-pane);color:var(--app-text)}
+.tree-map-info form{display:grid;gap:8px}.tree-map-info .btn{margin:4px 5px 0 0}
+@media(max-width:720px){.solar-theme .tree-map{grid-template-columns:minmax(0,1fr)}.tree-map-art svg{max-height:245px}}
