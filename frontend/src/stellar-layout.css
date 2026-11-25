@@ -205,3 +205,33 @@
     .solar-theme :is(.thread-choice,.device-row,.prompt-chips button):hover {box-shadow:inset 2px 0 var(--app-accent)}
   }
 }
+
+/* Keep text stationary while panels appear and directional icons respond. */
+@keyframes workspace-panel-in {
+  from { opacity: .62 }
+  to { opacity: 1 }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .solar-theme :is(.featured-panel, .trend-panel, .attention-panel, .devices-panel,
+    .tree-map-info form, .detail-grid > *, .insight-grid > *, .service-kpi,
+    .settings-block, .profile-box, .thread-list, .chat-bubble, .toast) {
+    animation: workspace-panel-in 320ms cubic-bezier(.2,.75,.25,1) backwards;
+  }
+  .solar-theme :is(.service-kpi, .settings-block, .profile-box):nth-child(2) { animation-delay: 45ms }
+  .solar-theme .service-kpi:nth-child(3) { animation-delay: 85ms }
+  .solar-theme :is(.row-chevron, .tree-card-arrow, .back-link svg) {
+    transition: transform 230ms cubic-bezier(.2,.8,.25,1);
+  }
+  .solar-theme .tree-map-pin path {
+    transform-box: fill-box;
+    transform-origin: center bottom;
+    transition: transform 220ms ease-out, fill 180ms ease, stroke 180ms ease;
+  }
+  .solar-theme .tree-map-pin[data-selected=true] path { transform: scale(1.12) }
+  @media (hover: hover) and (pointer: fine) {
+    .solar-theme .device-row:hover .row-chevron,
+    .solar-theme .tree-card:hover .tree-card-arrow { transform: translateX(3px) }
+    .solar-theme .back-link:hover svg { transform: translateX(-3px) }
+    .solar-theme .tree-map-pin:hover path { transform: scale(1.22) }
+  }
+}
