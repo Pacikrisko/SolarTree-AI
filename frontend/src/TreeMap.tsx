@@ -36,7 +36,7 @@ export default function TreeMap({trees,onOpen,onSaved}:{trees:Tree[];onOpen:(id:
   return <section className="panel tree-map" aria-label={en?'Tree locations':'Местоположение на дърветата'}>
     <div className="tree-map-art"><svg viewBox="0 0 660 435" ref={svg} onClick={place} style={{cursor:editing?'crosshair':undefined}} aria-label={en?'Map of Bulgaria':'Карта на България'}>
       <path d={outline} className="tree-map-land"/>
-      {pins.map(tree=>{const [x,y]=project(tree.lng!,tree.lat!);return <g key={tree.id} transform={`translate(${x} ${y})`} className="tree-map-pin" data-selected={tree.id===current?.id} onClick={()=>{if(!editing)select(tree.id)}}>
+      {pins.map(tree=>{const [x,y]=project(tree.lng!,tree.lat!);return <g key={tree.id} transform={`translate(${x} ${y})`} className="tree-map-pin" role="button" tabIndex={editing?-1:0} aria-label={tree.name} onKeyDown={event=>{if(!editing&&(event.key==='Enter'||event.key===' ')){event.preventDefault();select(tree.id)}}} data-selected={tree.id===current?.id} onClick={()=>{if(!editing)select(tree.id)}}>
         <title>{tree.name} · {tree.location}</title><circle cy="-10" r="19" fill="transparent"/><path d="M0 0 C-2 -4 -10 -10 -10 -17 A10 10 0 1 1 10 -17 C10 -10 2 -4 0 0Z"/><circle cy="-17" r="3" fill="white"/>
       </g>})}
       {editing&&lat&&lng&&<circle cx={project(Number(lng),Number(lat))[0]} cy={project(Number(lng),Number(lat))[1]} r="6" fill="none" stroke="currentColor" strokeWidth="2"/>}
