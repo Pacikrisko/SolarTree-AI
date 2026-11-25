@@ -468,7 +468,7 @@ def trees(db:Session=Depends(get_db),user:User=Depends(logged_in)):
 def create_tree(data:TreeIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     # One-time claim must be serialized: only one user can redeem a manufacturing QR.
     reg=verify_pair(db,data.code,data.claim_token,user)
-    if db.scalar(select(Tree).where(Tree.code==reg.code)):
+    if reg.claimed_tree_id is None and db.scalar(select(Tree).where(Tree.code==reg.code)):
         raise HTTPException(status_code=409,detail='Това устройство вече е регистрирано.')
     tree=Tree(name=data.name.strip(),code=reg.code,model_code=reg.model_code,kind=reg.kind,
               location=data.location.strip(),owner_id=user.id,
