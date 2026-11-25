@@ -12,9 +12,17 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(100))
     email: Mapped[str] = mapped_column(String(200), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(300))
+    session_version: Mapped[int] = mapped_column(default=0, server_default="0")
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     role: Mapped[str] = mapped_column(String(30), default='owner')
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+class PasswordReset(Base):
+    __tablename__ = 'password_resets'
+    digest: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    password_stamp: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
 
 class GoogleIdentity(Base):
     __tablename__ = 'google_identities'

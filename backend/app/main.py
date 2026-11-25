@@ -27,6 +27,7 @@ from .database import Base, engine, get_db, SessionLocal
 from .models import User, Tree, Reading, Alert, Maintenance, DeviceRegistration, MobilePairSession, DeviceSample, ChatExchange
 from .seed import DEMO_MODE, seed_demo
 from .google_login import google_client_id, google_user, verified_claims
+from .password_reset import router as password_reset_router
 from .security import hash_password, verify_password, create_token, current_user, require_user
 from .ml import predict_power, detect_anomaly
 from .maintenance import initialize_maintenance, maintenance_for, COMPONENTS
@@ -49,6 +50,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title='SolarTree AI', version='0.8.0-deploy', lifespan=lifespan)
+app.include_router(password_reset_router)
 app.add_middleware(CORSMiddleware, allow_origins=['http://localhost:5173','http://127.0.0.1:5173'],
                    allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
 

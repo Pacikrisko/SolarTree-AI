@@ -4,6 +4,8 @@ from sqlalchemy import inspect, text
 def upgrade(engine):
     with engine.begin() as conn:
         inspector = inspect(conn)
+        if inspector.has_table("users") and "session_version" not in {c["name"] for c in inspector.get_columns("users")}:
+            conn.execute(text("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0"))
         if inspector.has_table("users") and "is_admin" not in {c["name"] for c in inspector.get_columns("users")}:
             conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE"))
         if inspector.has_table('chat_exchanges') and 'conversation_id' not in {c['name'] for c in inspector.get_columns('chat_exchanges')}:

@@ -28,7 +28,7 @@ def verify_password(password: str, encoded: str) -> bool:
 
 def create_token(user: User) -> str:
     expiry = datetime.now(timezone.utc) + timedelta(hours=8)
-    return jwt.encode({'sub': str(user.id), 'exp': expiry}, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode({'sub': str(user.id), 'exp': expiry, 'sv': user.session_version}, SECRET_KEY, algorithm=ALGORITHM)
 
 def current_user(db: Session, authorization: str | None) -> User | None:
     if not authorization:
@@ -39,7 +39,7 @@ def current_user(db: Session, authorization: str | None) -> User | None:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user = db.get(User, int(payload['sub']))
-        if not user:
+        if not user or payload.get('sv', 0) != user.session_version:
             raise ValueError('User no longer exists')
         return user
     except (jwt.PyJWTError, ValueError, TypeError, KeyError):

@@ -1,5 +1,5 @@
 import {Button} from '@radix-ui/themes'
-import {tr} from './language'
+import {tr,getLanguage} from './language'
 import {LanguageButton} from './LanguageButton'
 import {useRef,useState, type FormEvent} from 'react'
 import {ArrowRight, CircleAlert, Eye, EyeOff, LoaderCircle, LockKeyhole, Mail, UserRound} from 'lucide-react'
@@ -128,6 +128,7 @@ export default function AuthScreen({onSuccess}: {onSuccess: (payload: TokenPaylo
                 {busy ? <LoaderCircle size={18} aria-hidden="true" /> : <ArrowRight size={18} aria-hidden="true" />}
               </Button>
             </form>
+            {!link&&!registering&&<p style={{textAlign:'center',marginTop:16}}><a href="#/forgot-password">{getLanguage()==='en'?'Forgot password?':'Забравена парола?'}</a></p>}
             <p className="signin-switch">
               {link?null:registering ? tr("Вече имаш профил?") : tr("Нямаш профил?")}
               <button type="button" disabled={busy} onClick={link?cancelLink:switchMode}>{link?tr("Отказ"):registering ? tr("Вход") : tr("Регистрация")}</button>

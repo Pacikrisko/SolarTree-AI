@@ -1,6 +1,7 @@
 import {Button, Card, IconButton as RadixIconButton, Theme} from '@radix-ui/themes'
 import {LanguageButton,useLanguage} from './LanguageButton'
 import {useWorkspaceRoute, goToSection} from './workspaceRoute'
+import PasswordRecovery from './PasswordRecovery'
 import AdminPanel from './AdminPanel'
 import {tr,getLanguage,locale} from './language'
 import {useCallback,useEffect,useMemo,useRef,useState, type FormEvent, type ReactNode} from 'react'
@@ -104,6 +105,13 @@ export default function App(){
   function toggleTheme(){
     setTheme(current => current === 'dark' ? 'light' : 'dark')
   }
+  const [recoveryHash,setRecoveryHash]=useState(()=>location.hash)
+  useEffect(()=>{
+    const sync=()=>setRecoveryHash(location.hash)
+    window.addEventListener('hashchange',sync)
+    return ()=>window.removeEventListener('hashchange',sync)
+  },[])
+  const recovering=recoveryHash==='#/forgot-password'||recoveryHash.startsWith('#/reset-password/')
   const [session,setSession]=useState(0)
   const endSession=useCallback(()=>{ setAuthToken(''); goToSection('overview',null,true); setSession(previous=>previous+1) },[])
   useEffect(()=>{
@@ -120,7 +128,7 @@ export default function App(){
     }
   },[endSession])
   return <Theme className={`solar-theme ${theme}`} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid" appearance="inherit">
-    <Workspace key={session} logout={endSession} theme={theme} toggleTheme={toggleTheme}/>
+    {recovering ? <PasswordRecovery key={recoveryHash} hash={recoveryHash}/> : <Workspace key={session} logout={endSession} theme={theme} toggleTheme={toggleTheme}/>}
   </Theme>
 }
 

@@ -558,3 +558,40 @@ def test_admin_simulator_lifecycle():
         listing = c.get('/api/admin/devices', headers=headers)
         assert any(row['code']==keys['code'] and row['status']=='active' for row in listing.json()['devices'])
         assert keys['claim'] not in listing.text and keys['telemetry'] not in listing.text
+
+
+def test_password_recovery(monkeypatch):
+    from datetime import timedelta
+    from app import password_reset as recovery
+    monkeypatch.setenv('PASSWORD_RESET_ORIGIN','https://example.org')
+    monkeypatch.setenv('RESEND_API_KEY','test-only')
+    monkeypatch.setenv('PASSWORD_RESET_FROM','mail@example.org')
+    messages = []
+    def send(url, **kwargs):
+        messages.append(kwargs['json'])
+        return type('Result', (), {'raise_for_status':lambda self: None})()
+    monkeypatch.setattr(recovery.httpx,'post',send)
+    email = 'recovery@example.org'
+    with TestClient(app) as c:
+        old = 'PasswordBefore123'
+        new = 'PasswordAfter456'
+        assert c.post('/api/auth/register',json={'email':email,'name':'Recovery test','password':old}).is_success
+        session = auth(c,email,old)
+        def request(address):
+            return c.post('/api/auth/forgot-password',json={'email':address})
+        missing = request('nobody123@example.org')
+        issued = request(email)
+        assert missing.status_code == issued.status_code == 202 and missing.json() == issued.json()
+        assert len(messages) == 1 and messages[0]['to'] == [email]
+        token = messages[0]['text'].split('https://example.org/#/reset-password/')[1]
+        payload = {'token':token,'password':new}
+        assert c.post('/api/auth/reset-password',json=payload).status_code == 200
+        assert c.post('/api/auth/reset-password',json=payload).status_code == 400
+        assert c.get('/api/auth/me',headers=session).status_code == 401
+        assert c.post('/api/auth/login',json={'email':email,'password':old}).status_code == 401
+        assert c.get('/api/auth/me',headers=auth(c,email,new)).status_code == 200
+        request(email)
+        later = recovery.utcnow() + timedelta(minutes=31)
+        monkeypatch.setattr(recovery,'utcnow',lambda:later)
+        payload['token'] = messages[-1]['text'].split('https://example.org/#/reset-password/')[1]
+        assert c.post('/api/auth/reset-password',json=payload).status_code == 400
