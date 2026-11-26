@@ -1,38 +1,70 @@
-import {useEffect,useState} from 'react'
-import {CalendarDays} from 'lucide-react'
+import {lazy,Suspense,useEffect,useRef,useState} from 'react'
+import {CalendarDays,ChevronLeft,ChevronRight} from 'lucide-react'
 import {request} from './api'
-import {getLanguage} from './language'
+import {locale} from './language'
+import type {Forecast,OxygenHistory} from './types'
+import './archive.css'
 
-type Day={date:string;oxygen_l:number;energy_kwh:number}
-type Archive=Day & {month:string;months:string[];days:Day[];peak_oxygen_day:string}
+const Power=lazy(()=>import('./Charts').then(m=>({default:m.ForecastChart})))
+const Oxygen=lazy(()=>import('./Charts').then(m=>({default:m.OxygenChart})))
+type Day={date:string;energy_kwh:number;oxygen_l:number}
+type Props={treeId?:number;kind:'power'|'oxygen';forecast?:Forecast|null;oxygen?:OxygenHistory|null}
+function dateKey(date:Date){
+  return [date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-')
+}
 
-export default function MonthlyArchive({treeId}:{treeId:number}){
-  const en=getLanguage()==='en', locale=en?'en-GB':'bg-BG'
-  const [open,setOpen]=useState(false),[month,setMonth]=useState('')
-  const [data,setData]=useState<Archive|null>(null),[error,setError]=useState(''),[retry,setRetry]=useState(0)
-  const [metric,setMetric]=useState<'oxygen_l'|'energy_kwh'>('oxygen_l')
+// Distribute the archive's daily totals across hourly intervals with a daylight peak.
+function hourly(day:Day){
+  const weights=Array.from({length:24},(_,h)=>.008+Math.max(0,Math.sin((h-6)*Math.PI/12)))
+  const sum=weights.reduce((a,b)=>a+b,0)
+  let liters=0
+  return weights.map((w,h)=>{
+    const flow=day.oxygen_l*w/sum
+    liters+=flow
+    return {time:day.date+'T'+String(h).padStart(2,'0')+':00:00',power_w:day.energy_kwh*1000*w/sum,
+      cumulative_l:liters,oxygen_flow_lph:flow,basis:'estimated',source:'simulation'}
+  })
+}
+export default function MonthlyArchive({treeId,kind,forecast,oxygen}:Props){
+  const lang=locale(),en=lang.startsWith('en'),power=kind==='power'
+  const [open,setOpen]=useState(false),[day,select]=useState<Day|null>(null)
+  const [month,setMonth]=useState(''),[months,setMonths]=useState<string[]>([]),[days,setDays]=useState<Day[]>([])
+  const [error,setError]=useState(''),[retry,setRetry]=useState(0)
+  const root=useRef<HTMLDivElement>(null),trigger=useRef<HTMLButtonElement>(null)
   useEffect(()=>{
-    if(!open)return
+    if(!open||!treeId)return
     let active=true
-    setData(null);setError('')
-    request<Archive>('/trees/'+treeId+'/monthly-archive'+(month?'?month='+month:''))
-      .then(value=>{if(active)setData(value)}).catch(e=>{if(active)setError(e.message)})
+    setError('');setDays([])
+    request<{month:string;months:string[];days:Day[]}>('/trees/'+treeId+'/monthly-archive'+(month?'?month='+month:''))
+      .then(r=>{if(active){setMonths(r.months);setDays(r.days)}}).catch(e=>{if(active)setError(e.message)})
     return ()=>{active=false}
   },[open,month,treeId,retry])
-  const fmt=(n:number)=>n.toLocaleString(locale,{maximumFractionDigits:2})
-  const monthName=(m:string)=>new Date(m+'-15T12:00:00').toLocaleDateString(locale,{month:'long',year:'numeric'})
-  const unit=metric==='oxygen_l'?'L':'kWh'
-  const max=data?Math.max(...data.days.map(d=>d[metric]),0.001):1
-  return <section className="panel" style={{padding:'1rem',marginBottom:'1rem'}}>
-    <button className="btn btn-outline" aria-expanded={open} onClick={()=>setOpen(!open)}><CalendarDays size={18}/>{en?'Analysis history':'История на анализите'}</button>
-    {open&&<div>{error?<p role="alert">{error} <button onClick={()=>setRetry(v=>v+1)}>{en?'Retry':'Опитай отново'}</button></p>:!data?<p role="status">{en?'Loading…':'Зареждане…'}</p>:<>
-      <p><label>{en?'Month':'Месец'} <select value={data.month} onChange={e=>setMonth(e.target.value)}>{data.months.map(m=><option key={m} value={m}>{monthName(m)}</option>)}</select></label></p>
-      <h3>{monthName(data.month)}</h3><small>{en?'Illustrative monthly estimates':'Примерни изчислени данни за месеца'}</small>
-      <p>{en?'Oxygen':'Кислород'} <strong>{fmt(data.oxygen_l)} L</strong> · {en?'Energy':'Енергия'} <strong>{fmt(data.energy_kwh)} kWh</strong></p>
-      <label>{en?'Daily chart':'Диаграма по дни'} <select value={metric} onChange={e=>setMetric(e.target.value as typeof metric)}><option value="oxygen_l">O₂ (L)</option><option value="energy_kwh">{en?'Energy':'Енергия'} (kWh)</option></select></label>
-      <div style={{display:'flex',alignItems:'end',height:128,gap:2,marginTop:14,borderBottom:'1px solid currentColor'}}>{data.days.map(d=><div key={d.date} title={d.date+' · '+fmt(d[metric])+' '+unit} style={{flex:1,height:(100*d[metric]/max)+'%',background:'var(--app-accent)',borderRadius:'3px 3px 0 0'}}/>)}</div>
-      <small style={{display:'flex',justifyContent:'space-between'}}><span>01</span><span>15</span><span>{data.days.length}</span></small>
-      <details><summary>{en?'Daily values':'Стойности по дни'}</summary><table><thead><tr><th>{en?'Day':'Ден'}</th><th>O₂ (L)</th><th>kWh</th></tr></thead><tbody>{data.days.map(d=><tr key={d.date}><td>{d.date}</td><td>{fmt(d.oxygen_l)}</td><td>{fmt(d.energy_kwh)}</td></tr>)}</tbody></table></details>
-    </>}</div>}
+  useEffect(()=>{
+    if(!open)return
+    const outside=(e:PointerEvent)=>{if(!root.current?.contains(e.target as Node))setOpen(false)}
+    const escape=(e:KeyboardEvent)=>{if(e.key==='Escape'){setOpen(false);trigger.current?.focus()}}
+    document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape)
+    return ()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape)}
+  },[open])
+  const current=month||months[0],index=months.indexOf(current)
+  const first=new Date((current||'2000-01')+'-01T12:00:00'),offset=(first.getDay()+6)%7
+  const title=power?(day?(en?'Power':'Мощност'):(en?'Power forecast':'Прогноза за мощност')):(en?'Oxygen production':'Производство на кислород')
+  const rows=day?hourly(day):[]
+  function pick(value:Day|null){select(value);setOpen(false);trigger.current?.focus()}
+  return <section className="panel archive-chart"><header><h3>{title}</h3><div ref={root} className="archive-picker">
+    <button type="button" ref={trigger} className="btn btn-outline" disabled={!treeId} aria-expanded={open} aria-label={(en?'Calendar · ':'Календар · ')+title} onClick={()=>setOpen(!open)}><CalendarDays size={16}/>{day?new Date(day.date+'T12:00:00').toLocaleDateString(lang):en?'History':'История'}</button>
+    {open&&<div className="archive-pop" role="dialog" aria-label={en?'Choose a date':'Избери дата'}>
+      {current&&<div className="archive-month"><strong>{first.toLocaleDateString(lang,{month:'long',year:'numeric'})}</strong>
+      <button aria-label={en?'Previous month':'Предходен месец'} disabled={index+1>=months.length} onClick={()=>setMonth(months[index+1])}><ChevronLeft size={16}/></button>
+      <button aria-label={en?'Next month':'Следващ месец'} disabled={index<=0} onClick={()=>setMonth(months[index-1])}><ChevronRight size={16}/></button></div>}
+      {error?<button onClick={()=>setRetry(r=>r+1)}>{en?'Retry':'Опитай отново'}</button>:days.length?<div className="archive-days">
+        {Array.from({length:7},(_,i)=><small key={i}>{new Date(2024,0,1+i).toLocaleDateString(lang,{weekday:'short'})}</small>)}
+        {Array.from({length:42},(_,i)=>{const number=i-offset+1,value=days[number-1],date=new Date(first.getFullYear(),first.getMonth(),number)
+          return <button key={i} disabled={!value} aria-label={dateKey(date)} aria-pressed={!!value&&day?.date===value.date} onClick={()=>pick(value)}>{date.getDate()}</button>})}
+      </div>:<p role="status">{en?'Loading…':'Зареждане…'}</p>}
+      <button className="archive-reset" onClick={()=>pick(null)}>{en?'Current data':'Текущи данни'}</button>
+    </div>}</div></header>
+    {day&&<small>{en?'Illustrative hourly estimates':'Примерни почасови стойности'}{power?' · '+day.energy_kwh.toLocaleString(lang)+' kWh':''}</small>}
+    <Suspense fallback={<div className="chart-box" aria-busy="true"/>}>{power?<Power forecast={day?{points:rows,mae_w:null,trained_samples:0,model:'archive'}:forecast??null} historical={!!day}/>:<Oxygen history={day?{tree_id:treeId!,points:rows,total_l:day.oxygen_l,current_flow_lph:rows[23].oxygen_flow_lph,basis:'estimated',note:''}:oxygen??null}/>}</Suspense>
   </section>
 }
