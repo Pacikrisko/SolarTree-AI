@@ -109,6 +109,7 @@ async function main() {
     const oxygenCalendar=charts.nth(1).locator('.archive-picker > button')
     const powerLabel=await powerCalendar.innerText()
     await oxygenCalendar.click()
+    await charts.nth(1).locator('.archive-month button').first().click()
     await charts.nth(1).locator('.archive-days button:enabled').first().click()
     assert.equal(await powerCalendar.innerText(),powerLabel)
     assert.notEqual(await oxygenCalendar.innerText(),powerLabel)

@@ -543,7 +543,7 @@ def tree_archive(tree_id:int,month:str|None=None,db:Session=Depends(get_db),user
     tree=find_tree(db,tree_id,user)
     months=archive_months()
     if month is not None and month not in months:
-        raise HTTPException(422,'Избери един от последните 12 завършени месеца.')
+        raise HTTPException(422,'Избери месец от наличния архив.')
     return {**monthly_archive(tree,month or months[0]),'months':months}
 
 
@@ -832,7 +832,7 @@ def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
                 entry=monthly_archive(tree,month)
                 index=int(month[-2:])-1
                 requested=any(term in question for term in (month,bulgarian_months[index],english_months[index]))
-                previous=month==months[0] and any(term in question for term in ('last month','миналия месец','предходния месец'))
+                previous=month==months[1] and any(term in question for term in ('last month','миналия месец','предходния месец'))
                 if not (requested or previous):
                     entry.pop('days')
                 device['monthly_archive'].append(entry)

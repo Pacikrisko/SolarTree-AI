@@ -49,10 +49,12 @@ export default function MonthlyArchive({treeId,kind,forecast,oxygen}:Props){
   const current=month||months[0],index=months.indexOf(current)
   const first=new Date((current||'2000-01')+'-01T12:00:00'),offset=(first.getDay()+6)%7
   const title=power?(day?(en?'Power':'Мощност'):(en?'Power forecast':'Прогноза за мощност')):(en?'Oxygen production':'Производство на кислород')
+  const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Sofia',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())
+  const displayedDate=(day?.date??today).split('-').reverse().join('.')
   const rows=day?hourly(day):[]
   function pick(value:Day|null){select(value);setOpen(false);trigger.current?.focus()}
   return <section className="panel archive-chart"><header><h3>{title}</h3><div ref={root} className="archive-picker">
-    <button type="button" ref={trigger} className="btn btn-outline" disabled={!treeId} aria-expanded={open} aria-label={(en?'Calendar · ':'Календар · ')+title} onClick={()=>setOpen(!open)}><CalendarDays size={16}/>{day?new Date(day.date+'T12:00:00').toLocaleDateString(lang):en?'History':'История'}</button>
+    <button type="button" ref={trigger} className="btn btn-outline" disabled={!treeId} aria-expanded={open} aria-label={(en?'Calendar · ':'Календар · ')+title} onClick={()=>setOpen(!open)}><CalendarDays size={16}/>{displayedDate}</button>
     {open&&<div className="archive-pop" role="dialog" aria-label={en?'Choose a date':'Избери дата'}>
       {current&&<div className="archive-month"><strong>{first.toLocaleDateString(lang,{month:'long',year:'numeric'})}</strong>
       <button aria-label={en?'Previous month':'Предходен месец'} disabled={index+1>=months.length} onClick={()=>setMonth(months[index+1])}><ChevronLeft size={16}/></button>
@@ -60,7 +62,7 @@ export default function MonthlyArchive({treeId,kind,forecast,oxygen}:Props){
       {error?<button onClick={()=>setRetry(r=>r+1)}>{en?'Retry':'Опитай отново'}</button>:days.length?<div className="archive-days">
         {Array.from({length:7},(_,i)=><small key={i}>{new Date(2024,0,1+i).toLocaleDateString(lang,{weekday:'short'})}</small>)}
         {Array.from({length:42},(_,i)=>{const number=i-offset+1,value=days[number-1],date=new Date(first.getFullYear(),first.getMonth(),number)
-          return <button key={i} disabled={!value} aria-label={dateKey(date)} aria-pressed={!!value&&day?.date===value.date} onClick={()=>pick(value)}>{date.getDate()}</button>})}
+          return <button key={i} disabled={!value} aria-label={dateKey(date)} aria-pressed={!!value&&(day?.date??today)===value.date} onClick={()=>pick(value)}>{date.getDate()}</button>})}
       </div>:<p role="status">{en?'Loading…':'Зареждане…'}</p>}
       <button className="archive-reset" onClick={()=>pick(null)}>{en?'Current data':'Текущи данни'}</button>
     </div>}</div></header>
