@@ -240,3 +240,13 @@
     .solar-theme .tree-map-pin:hover path { transform: scale(1.22) }
   }
 }
+
+.support-columns{display:grid;grid-template-columns:minmax(180px,1fr) minmax(0,2fr);gap:16px;align-items:start}
+.support-columns>.panel{min-width:0;padding:20px;overflow-wrap:anywhere}
+.support-case{display:grid;width:100%;text-align:start;margin-top:8px}
+.support-case[aria-pressed=true]{border-color:var(--app-accent)}
+.support-log{max-height:45vh;overflow:auto}
+.support-log article{border-top:1px solid var(--app-edge);padding:10px 0}
+.support-log p{white-space:pre-wrap}
+.support-desk textarea{min-height:90px;resize:vertical}
+@media(max-width:700px){.support-columns{grid-template-columns:minmax(0,1fr)}}

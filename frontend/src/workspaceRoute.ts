@@ -2,7 +2,7 @@ import {useSyncExternalStore} from 'react'
 import type {Page} from './types'
 
 const pages:Record<Page,true> = {
-  overview:true, trees:true, detail:true, insights:true, assistant:true,
+  support:true, overview:true, trees:true, detail:true, insights:true, assistant:true,
   service:true, settings:true, profile:true, admin:true,
 }
 function subscribe(update:()=>void){

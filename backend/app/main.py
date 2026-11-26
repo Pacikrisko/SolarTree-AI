@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, desc, func, update, or_, delete
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from .database import Base, engine, get_db, SessionLocal
+from .models import SupportAgent, DeviceWarranty, SupportTicket, SupportMessage
 from .models import TreeMember, PairInvite, User, Tree, Reading, Alert, Maintenance, DeviceRegistration, MobilePairSession, DeviceSample, ChatExchange
 from .seed import DEMO_MODE, seed_demo
 from .google_login import google_client_id, google_user, verified_claims
@@ -847,6 +848,81 @@ def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     return exchange_json(exchange)
 
 
+
+
+class TicketInput(BaseModel):
+    category: Literal['account','connection','performance','warranty','other']
+    channel: Literal['ticket','chat']
+    subject: Annotated[str, StringConstraints(strip_whitespace=True,min_length=2,max_length=140)]
+    body: Annotated[str, StringConstraints(strip_whitespace=True,min_length=1,max_length=4000)]
+    tree_id: int | None = None
+
+
+class SupportReply(BaseModel):
+    body: Annotated[str, StringConstraints(strip_whitespace=True,min_length=1,max_length=4000)]
+
+
+def ticket_json(db,t):
+    warranty=db.get(DeviceWarranty,t.serial) if t.serial else None
+    return dict(id=t.id,subject=t.subject,category=t.category,channel=t.channel,model=t.model,serial=t.serial,
+                warranty=warranty.valid_until.date().isoformat() if warranty else None,
+                customer=db.get(User,t.owner).name,agent=db.get(User,t.agent).name if t.agent else None,closed=t.closed)
+
+
+def support_ticket(db,user,ticket_id,lock=False):
+    query=select(SupportTicket).where(SupportTicket.id==ticket_id)
+    ticket=db.scalar(query.with_for_update() if lock else query)
+    if not ticket or (ticket.owner!=user.id and not db.get(SupportAgent,user.id)):
+        raise HTTPException(404,'Запитването не е намерено.')
+    return ticket
+
+
+@app.get('/api/support')
+def support_list(db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    agent=bool(db.get(SupportAgent,user.id))
+    query=select(SupportTicket)
+    if not agent: query=query.where(SupportTicket.owner==user.id)
+    return {'agent':agent,'tickets':[ticket_json(db,t) for t in db.scalars(query.order_by(SupportTicket.id.desc()))]}
+
+
+@app.post('/api/support')
+def new_ticket(data:TicketInput,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    tree=find_tree(db,data.tree_id,user) if data.tree_id is not None else None
+    t=SupportTicket(owner=user.id,category=data.category,channel=data.channel,subject=data.subject,
+                    serial=tree.code if tree else None,model=get_model(tree.model_code,tree.code)['name'] if tree else None)
+    db.add(t);db.flush()
+    db.add(SupportMessage(ticket=t.id,by_agent=False,body=data.body))
+    db.commit()
+    return {'id':t.id}
+
+
+@app.get('/api/support/{ticket_id}')
+def support_thread(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    t=support_ticket(db,user,ticket_id)
+    messages=db.scalars(select(SupportMessage).where(SupportMessage.ticket==t.id).order_by(SupportMessage.id))
+    return {**ticket_json(db,t),'messages':[dict(id=m.id,agent=m.by_agent,body=m.body,time=m.created_at.isoformat()+'Z') for m in messages]}
+
+
+@app.post('/api/support/{ticket_id}/reply')
+def support_reply(ticket_id:int,data:SupportReply,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    t=support_ticket(db,user,ticket_id,True)
+    if t.closed: raise HTTPException(409,'Разговорът е приключен.')
+    by_agent=t.owner!=user.id
+    if by_agent:
+        if t.agent not in (None,user.id): raise HTTPException(409,'Друг агент работи по случая.')
+        t.agent=user.id
+    db.add(SupportMessage(ticket=t.id,by_agent=by_agent,body=data.body))
+    db.commit()
+    return {'ok':True}
+
+
+@app.post('/api/support/{ticket_id}/close')
+def close_support(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    t=support_ticket(db,user,ticket_id,True)
+    if user.id not in (t.owner,t.agent): raise HTTPException(403,'Нямаш достъп за приключване.')
+    t.closed=True
+    db.commit()
+    return {'ok':True}
 
 # Serve the built React application from the same HTTPS host as FastAPI. This avoids
 # cross-origin cookies and makes mobile QR scanning possible on a single Render URL.

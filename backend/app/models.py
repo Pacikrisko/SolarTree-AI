@@ -151,3 +151,35 @@ class PairInvite(Base):
     __tablename__ = 'pair_invites'
     digest: Mapped[str] = mapped_column(String(64), primary_key=True)
     registration_id: Mapped[int] = mapped_column(ForeignKey('device_registrations.id'))
+
+class SupportAgent(Base):
+    __tablename__ = 'support_agents'
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), primary_key=True)
+
+
+class DeviceWarranty(Base):
+    __tablename__ = 'device_warranties'
+    serial: Mapped[str] = mapped_column(String(40), primary_key=True)
+    valid_until: Mapped[datetime] = mapped_column(DateTime)
+
+
+class SupportTicket(Base):
+    __tablename__ = 'support_tickets'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    agent: Mapped[int | None] = mapped_column(ForeignKey('support_agents.user_id'))
+    category: Mapped[str] = mapped_column(String(30))
+    channel: Mapped[str] = mapped_column(String(12))
+    subject: Mapped[str] = mapped_column(String(140))
+    serial: Mapped[str | None] = mapped_column(String(40))
+    model: Mapped[str | None] = mapped_column(String(120))
+    closed: Mapped[bool] = mapped_column(default=False)
+
+
+class SupportMessage(Base):
+    __tablename__ = 'support_messages'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ticket: Mapped[int] = mapped_column(ForeignKey('support_tickets.id'), index=True)
+    by_agent: Mapped[bool] = mapped_column()
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

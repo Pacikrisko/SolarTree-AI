@@ -18,7 +18,7 @@ function checkSession(status:number, sentToken:string) {
     window.dispatchEvent(new Event('solartree-session-ended'))
   }
 }
-async function request<T>(path:string, options:RequestInit={}):Promise<T> {
+export async function request<T>(path:string, options:RequestInit={}):Promise<T> {
   const headers:Record<string,string>={'Content-Type':'application/json'}
   const sentToken=token
   if(sentToken) headers.Authorization=`Bearer ${sentToken}`
