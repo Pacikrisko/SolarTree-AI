@@ -4,6 +4,7 @@ export interface User { id: number; name: string; email: string; role: Role; is_
 export interface Reading { id:number; tree_id:number; time:string; power_w:number; temperature_c:number; humidity_pct:number; h2_sensor_value:number; water_pct:number; source:'simulation'|'device'; oxygen_flow_lph:number|null; electrolyzer_power_w:number|null; oxygen_basis:'simulation'|'measured'|'unavailable'|'estimated' }
 export interface TreeConfig { code:string; name:string; panel_count:number; tilt_deg:number; rated_solar_w:number; description:string; auxiliary_kw?:number; electrolyzer_kw?:number; oxygen_nominal_lph?:number; fuel_cell_kw?:number; water_tank_l?:number; hydrogen_tank_l?:number }
 export interface UrbanSimulation {
+  battery_pct:number;
   hydrogen_pressure_bar_g:number; fuel_cell_load_kw:number; hydrogen_flow_nlph:number; mq8_adc_raw:number
 }
 export interface Tree { simulation?:UrbanSimulation|null; id:number; code:string; name:string; kind:'municipal'|'private'; model:TreeConfig; location:string; lat:number|null; lng:number|null; latest:Reading|null; open_alerts:number; service_attention:number; connection:'live'|'model'|'offline'; media_kind:'image'|'video'|null; latest_sensors?:{time:string;temperature_c:number|null;humidity_pct:number|null;mq8_adc_raw:number|null;power_w:number|null;water_pct:number|null;oxygen_flow_lph:number|null}|null }

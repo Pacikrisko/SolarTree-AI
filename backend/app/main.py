@@ -452,6 +452,12 @@ def resources(tree_id: int, water_fill_pct: float = Query(default=100.0, ge=0, l
     model = get_model(tree.model_code, tree.code)
     if not model.get('water_tank_l') or not model.get('hydrogen_tank_l'):
         raise HTTPException(status_code=404, detail='За този модел няма данни за резервоарите.')
+    if is_urban_simulator(tree):
+        reading, operating = urban_sample(tree, datetime.now(timezone.utc).replace(tzinfo=None))
+        water_fill_pct = reading.water_pct
+        pressure_bar_g = operating['hydrogen_pressure_bar_g']
+        fuel_cell_load_kw = operating['fuel_cell_load_kw']
+        efficiency = .5
     try:
         return resource_estimate(water_capacity_l=model['water_tank_l'],
             hydrogen_tank_internal_l=model['hydrogen_tank_l'],

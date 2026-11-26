@@ -13,5 +13,7 @@ def test_urban_ratings_at_solar_noon():
         model = get_model(tree.model_code, serial)
         assert (model['water_tank_l'], model['hydrogen_tank_l']) == (water, hydrogen)
         reading, _ = urban_sample(tree, datetime(2026, 6, 1, 11))
-        assert reading.oxygen_flow_lph == oxygen
-        assert reading.electrolyzer_power_w == kw * 1000
+        assert model['oxygen_nominal_lph'] == oxygen
+        assert 0 < reading.oxygen_flow_lph <= oxygen
+        assert 0 < reading.electrolyzer_power_w <= kw * 1000
+        assert model['fuel_cell_kw'] == (1.5 if serial.endswith('0002') else 1)

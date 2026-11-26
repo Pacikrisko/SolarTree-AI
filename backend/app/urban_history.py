@@ -21,21 +21,59 @@ def is_urban_simulator(tree: Tree) -> bool:
 def urban_sample(tree: Tree, when: datetime):
     """A repeatable 24-hour operating cycle. All timestamps are naive UTC, as in Reading."""
     model = get_model(tree.model_code, tree.code)
-    # Scenario sunrise is 05:00 UTC. Start with a full water tank at each sunrise.
+    # Daily dispatch model. Quantities below use kWh, normal litres and UTC hours.
+    dawn = (when - timedelta(hours=5)).date()
     hour = (when.hour + when.minute / 60 - 5) % 24
-    phase = math.pi * min(hour, URBAN_DAYLIGHT_HOURS) / URBAN_DAYLIGHT_HOURS
-    sunlight = max(0.0, math.sin(phase)) if hour < URBAN_DAYLIGHT_HOURS else 0.0
-    rated_electrolyzer_w = model['electrolyzer_kw'] * 1000
-    solar_w = model['rated_solar_w'] * sunlight
-    electrolyzer_w = rated_electrolyzer_w * sunlight
-    oxygen_lph = model['oxygen_nominal_lph'] * sunlight
-    # Integrate the same daylight curve used for the instantaneous gas flows.
-    oxygen_since_dawn = model['oxygen_nominal_lph'] * URBAN_DAYLIGHT_HOURS / math.pi * (1 - math.cos(phase))
-    water_used_l = oxygen_since_dawn * 2 * WATER_MOLAR_MASS_G / O2_MOLAR_VOLUME_L / 1000
-    water_pct = 100 * (1 - water_used_l / model['water_tank_l'])
-    # Constant demonstration fuel-cell load consumes one day's simulated H2 output per day.
-    fuel_use_nlph = 2 * model['oxygen_nominal_lph'] / math.pi
-    stored_h2_nl = 240 + 2 * oxygen_since_dawn - fuel_use_nlph * hour
+    phase = math.pi * min(hour, 12) / 12
+    sunlight = math.sin(phase) if hour < 12 else 0.0
+    cold = dawn.month in (11, 12, 1, 2)
+    solar_peak = model['rated_solar_w'] / 1000 * (.65 if cold else 1)
+    solar_w = 1000 * solar_peak * sunlight
+    rated = model['electrolyzer_kw']
+    yield_l = model['oxygen_nominal_lph'] / rated
+    battery_capacity = 8.0
+    # Reserve 15% and allocate more stored energy to daytime loads in winter.
+    discharge = 5.6 if cold else 2.8
+    sun_hours = 24 / math.pi
+    day_peak = min(rated, solar_peak + discharge / sun_hours)
+    night_kw = rated * .015
+    # Extra battery support for the first two hours after sunset.
+    dusk_kw = rated * .06
+    day_kwh = day_peak * sun_hours
+    night_kwh = 2 * dusk_kw + 10 * night_kw
+    fuel_kwh_per_litre = H2_LHV_KWH_PER_NORMAL_M3 * .5 / 1000
+    daily_h2 = 2 * yield_l * (day_kwh + night_kwh)
+    fuel_kw = min(model['fuel_cell_kw'], daily_h2 * fuel_kwh_per_litre / 12)
+    # Charging is limited by the nightly energy left after electrolysis.
+    swing = min(discharge, max(0, 12 * fuel_kw - night_kwh))
+    daylight_fraction = (1 - math.cos(phase)) / 2
+    night_hours = max(0, hour - 12)
+    night_used = dusk_kw * min(2, night_hours) + night_kw * max(0, night_hours - 2)
+    electrolyzer_kw = day_peak * sunlight if hour < 12 else (dusk_kw if hour < 14 else night_kw)
+    electrolyzer_w = 1000 * electrolyzer_kw
+    oxygen_lph = electrolyzer_kw * yield_l
+    oxygen_since_dawn = yield_l * (day_kwh * daylight_fraction + night_used)
+    fuel_use_nlph = fuel_kw / fuel_kwh_per_litre if hour >= 12 else 0
+    stored_h2_nl = 240 + 2 * oxygen_since_dawn - night_hours * fuel_kw / fuel_kwh_per_litre
+    battery_kwh = .15 * battery_capacity + swing * (1 - daylight_fraction)
+    battery_kwh += min(swing, max(0, fuel_kw * night_hours - night_used))
+    # Count prior operating days by season so the water level carries over at dawn.
+    from datetime import date
+    from calendar import isleap
+    before_year = dawn.year - 1
+    leap_days = before_year//4 - before_year//100 + before_year//400
+    cold_days = 120 * before_year + leap_days
+    cold_days += sum((date(dawn.year, m+1, 1)-date(dawn.year,m,1)).days
+                     for m in (1,2,11) if m < dawn.month)
+    if cold:
+        cold_days += dawn.day - 1
+    warm_days = dawn.toordinal() - 1 - cold_days
+    def daily_kwh(factor, support):
+        peak = min(rated, model['rated_solar_w']/1000 * factor + support/sun_hours)
+        return peak * sun_hours + night_kwh
+    lifetime_o2 = oxygen_since_dawn + yield_l * (cold_days*daily_kwh(.65,5.6) + warm_days*daily_kwh(1,2.8))
+    water_used = lifetime_o2 * 2 * WATER_MOLAR_MASS_G / O2_MOLAR_VOLUME_L / 1000
+    water_pct = 100 * (1 - water_used % (.9 * model['water_tank_l']) / model['water_tank_l'])
     normal_l_per_bar = model['hydrogen_tank_l'] * NORMAL_TEMP_K / (NORMAL_PRESSURE_BAR * TANK_TEMP_K)
     signal = 0.09 + 0.012 * sunlight + 0.004 * math.sin(2 * math.pi * hour / 3)
     lagged_heat = math.sin(2 * math.pi * (hour - 4) / 24)
@@ -48,6 +86,7 @@ def urban_sample(tree: Tree, when: datetime):
         h2_sensor_value=round(signal, 4),
     )
     operating = {
+        'battery_pct': round(100*battery_kwh/battery_capacity,1),
         'hydrogen_pressure_bar_g': round(stored_h2_nl / normal_l_per_bar, 1),
         'fuel_cell_load_kw': round(fuel_use_nlph * H2_LHV_KWH_PER_NORMAL_M3 * 0.5 / 1000, 3),
         'hydrogen_flow_nlph': round(2 * oxygen_lph, 1),
