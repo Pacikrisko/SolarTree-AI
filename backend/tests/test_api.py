@@ -125,7 +125,11 @@ def test_forecast_services_ai_route():
         city=auth(c,'municipality@demo.bg')
         tree=c.get('/api/trees',headers=city).json()[0]
         f=c.get(f'/api/trees/{tree["id"]}/forecast',headers=city)
-        assert f.status_code==200 and len(f.json()['points'])==6
+        assert f.status_code==200 and len(f.json()['points'])==24
+        from datetime import datetime, timedelta
+        times=[datetime.fromisoformat(point['time']) for point in f.json()['points']]
+        assert all(at.minute==0 for at in times)
+        assert all(b-a==timedelta(hours=1) for a,b in zip(times,times[1:]))
         assert len(c.get('/api/maintenance',headers=city).json())>=6
         assert c.post('/api/chat',headers=city,json={'tree_id':tree['id'],'message':'How is the tree?'}).status_code==503
 

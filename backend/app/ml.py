@@ -12,7 +12,7 @@ def features(r):
             r.temperature_c, r.humidity_pct]
 
 
-def predict_power(readings, steps=6):
+def predict_power(readings, steps=24):
     data = sorted(readings, key=lambda r:r.time)
     if len(data) < 30:
         return {'points':[], 'mae_w':None, 'trained_samples':len(data), 'model':'Недостатъчно данни'}
@@ -26,7 +26,7 @@ def predict_power(readings, steps=6):
     latest=data[-1]
     result=[]
     for i in range(1,steps+1):
-        when=latest.time+timedelta(minutes=15*i)
+        when=latest.time.replace(minute=0,second=0,microsecond=0)+timedelta(hours=i)
         h=when.hour+when.minute/60
         # Future temperature/humidity unknown. Last readings serve as a simple assumption.
         xfuture=np.array([[math.sin(2*math.pi*h/24),math.cos(2*math.pi*h/24),h,
