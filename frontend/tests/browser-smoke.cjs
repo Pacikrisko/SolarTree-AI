@@ -6,6 +6,12 @@ async function main() {
   const browser = await chromium.launch({executablePath:process.env.CHROME_PATH})
   try {
     const page = await browser.newPage({viewport:{width:1440,height:900}})
+    const outdated = await browser.newPage()
+    await outdated.goto(origin+'/?solixClient=android&build=1')
+    const update = outdated.getByRole('link',{name:/Актуализирай|Update/})
+    await update.waitFor()
+    assert.match(await update.getAttribute('href'), /Solix\.apk$/)
+    await outdated.close()
     const errors = []
     page.on('pageerror', error => errors.push(error.message))
     page.on('console', msg => { if(msg.type()==='error') errors.push(msg.text()) })
@@ -81,6 +87,8 @@ async function main() {
     await page.locator('.support-case').filter({hasText:'Browser session'}).waitFor({state:'detached'})
     await agentPage.getByRole('button',{name:/Live session history|История на живите сесии/}).click()
     await agentPage.getByRole('heading',{name:/Live session history|История на живите сесии/}).waitFor()
+    await customerChat.getByRole('button',{name:'5 / 5',exact:true}).click()
+    await customerChat.getByText(/Благодарим за оценката|Thank you for your rating/).waitFor()
     await customerChat.close()
     await agentPage.context().close()
     for(const width of [390,768,1440]){
