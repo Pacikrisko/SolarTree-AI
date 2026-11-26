@@ -824,9 +824,17 @@ def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
             device['oxygen_history']={**oxygen,'from':points[0]['time'] if points else None,
                                        'to':points[-1]['time'] if points else None}
             device['monthly_archive']=[]
-            for month in archive_months():
+            months=archive_months()
+            question=data.message.casefold()
+            bulgarian_months='януари февруари март април май юни юли август септември октомври ноември декември'.split()
+            english_months='january february march april may june july august september october november december'.split()
+            for month in months:
                 entry=monthly_archive(tree,month)
-                entry.pop('days')
+                index=int(month[-2:])-1
+                requested=any(term in question for term in (month,bulgarian_months[index],english_months[index]))
+                previous=month==months[0] and any(term in question for term in ('last month','миналия месец','предходния месец'))
+                if not (requested or previous):
+                    entry.pop('days')
                 device['monthly_archive'].append(entry)
             device['forecast']=tree_forecast(tree.id,db,user)
             device['daily_energy_outlook']=energy_outlook(
