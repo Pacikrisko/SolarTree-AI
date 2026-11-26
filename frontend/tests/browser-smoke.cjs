@@ -38,6 +38,37 @@ async function main() {
     const response = await page.request.get(origin+'/api/trees',{headers:{Authorization:'Bearer '+token}})
     const [tree] = await response.json()
     assert.equal(tree.name,'Browser tree')
+    const agentPage = await browser.newPage()
+    const account = await agentPage.request.post(origin+'/api/auth/register',{data:{
+      name:'Test agent',email:'agent-ui@example.com',password:'Test-agent-73591'
+    }})
+    const agent = await account.json()
+    assert.ok(agent.access_token)
+    require('node:child_process').execFileSync('psql',[
+      'postgresql://postgres:ci_only@127.0.0.1:5432/postgres','-v','ON_ERROR_STOP=1','-c',
+      "INSERT INTO support_agents(user_id) SELECT id FROM users WHERE email='agent-ui@example.com'"
+    ])
+    await agentPage.addInitScript(token=>localStorage.setItem('solartree_token',token),agent.access_token)
+    await agentPage.goto(origin+'/#/support')
+    await agentPage.locator('.support-desk aside').waitFor()
+    await page.goto(origin+'/#/support')
+    await page.locator('.desk-channels button').nth(1).click()
+    await page.locator('.support-desk select').first().selectOption(String(tree.id))
+    await page.locator('.support-desk input[name=subject]').fill('Browser session')
+    await page.locator('.support-desk textarea').fill('Please check the meter.')
+    const [customerChat]=await Promise.all([page.waitForEvent('popup'),page.locator('.support-desk form button.btn-primary').click()])
+    await customerChat.getByText('Please check the meter.').waitFor()
+    const [agentChat]=await Promise.all([agentPage.waitForEvent('popup'),agentPage.locator('.support-case').filter({hasText:'Browser session'}).click()])
+    await agentChat.getByRole('button',{name:/Accept session|Приеми сесията/}).click()
+    await agentChat.locator('.desk-readings').waitFor()
+    await agentChat.locator('textarea').fill('Your meter is connected.')
+    await agentChat.locator('form button').click()
+    await customerChat.getByText('Your meter is connected.').waitFor()
+    await customerChat.getByRole('button',{name:/End conversation|Приключи разговора/}).click()
+    await agentChat.locator('.desk-readings').waitFor({state:'detached'})
+    await agentPage.locator('.support-case').waitFor({state:'detached'})
+    await customerChat.close()
+    await agentPage.context().close()
     for(const width of [390,768,1440]){
       await page.setViewportSize({width,height:900})
       for(const section of ['overview','trees','detail','insights','assistant','service','settings','profile']){

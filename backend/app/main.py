@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, desc, func, update, or_, delete
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from .database import Base, engine, get_db, SessionLocal
-from .models import SupportAgent, DeviceWarranty, SupportTicket, SupportMessage
+from .models import LiveLease, SupportPresence, SupportAgent, DeviceWarranty, SupportTicket, SupportMessage
 from .models import TreeMember, PairInvite, User, Tree, Reading, Alert, Maintenance, DeviceRegistration, MobilePairSession, DeviceSample, ChatExchange
 from .seed import DEMO_MODE, seed_demo
 from .google_login import google_client_id, google_user, verified_claims
@@ -156,7 +156,8 @@ def to_tree(db: Session, tree: Tree):
                    or (sensor and (now-sensor.time).total_seconds()<300))
     open_alerts=db.scalar(select(func.count()).select_from(Alert).where(Alert.tree_id==tree.id,Alert.acknowledged.is_(False))) or 0
     services=maintenance_for(db,tree)
-    return {'id':tree.id,'code':tree.code,'name':tree.name,'kind':tree.kind,
+    warranty=db.get(DeviceWarranty,tree.code)
+    return {'warranty_until':warranty.valid_until.date().isoformat() if warranty else None,'id':tree.id,'code':tree.code,'name':tree.name,'kind':tree.kind,
             'model':get_model(tree.model_code, tree.code),
             'location':tree.location,'lat':tree.lat,'lng':tree.lng,
             'latest':to_reading(last) if last else None,
@@ -862,27 +863,63 @@ class SupportReply(BaseModel):
     body: Annotated[str, StringConstraints(strip_whitespace=True,min_length=1,max_length=4000)]
 
 
-def ticket_json(db,t):
-    warranty=db.get(DeviceWarranty,t.serial) if t.serial else None
-    return dict(id=t.id,subject=t.subject,category=t.category,channel=t.channel,model=t.model,serial=t.serial,
+def support_now():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+@app.middleware('http')
+async def private_support_responses(request:Request,call_next):
+    response=await call_next(request)
+    if request.url.path.startswith('/api/support'):
+        response.headers['Cache-Control']='private, no-store'
+    return response
+
+
+def expire_chats(db):
+    cutoff=support_now()-timedelta(minutes=2)
+    expired=select(LiveLease.ticket).where(or_(LiveLease.customer_seen<cutoff,LiveLease.agent_seen<cutoff))
+    db.execute(update(SupportTicket).where(SupportTicket.closed.is_(False),SupportTicket.id.in_(expired)).values(closed=True))
+    db.commit()
+
+
+@app.post('/api/support/presence')
+def support_presence(db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    if not db.get(SupportAgent,user.id):
+        raise HTTPException(403,'Само за агенти.')
+    db.merge(SupportPresence(agent=user.id,seen=support_now()))
+    db.commit()
+    return {'ok':True}
+
+
+def ticket_json(db,t,viewer):
+    visible=t.channel!="chat" or t.owner==viewer or (t.agent==viewer and not t.closed)
+    warranty=db.get(DeviceWarranty,t.serial) if visible and t.serial else None
+    return dict(id=t.id,subject=t.subject,category=t.category,channel=t.channel,model=t.model if visible else None,serial=t.serial if visible else None,
                 warranty=warranty.valid_until.date().isoformat() if warranty else None,
                 customer=db.get(User,t.owner).name,agent=db.get(User,t.agent).name if t.agent else None,closed=t.closed)
 
 
 def support_ticket(db,user,ticket_id,lock=False):
+    expire_chats(db)
     query=select(SupportTicket).where(SupportTicket.id==ticket_id)
     ticket=db.scalar(query.with_for_update() if lock else query)
     if not ticket or (ticket.owner!=user.id and not db.get(SupportAgent,user.id)):
         raise HTTPException(404,'Запитването не е намерено.')
+    if ticket.owner!=user.id and ticket.channel=="chat" and (ticket.closed or ticket.agent not in (None,user.id)):
+        raise HTTPException(404,"Сесията не е достъпна.")
     return ticket
 
 
 @app.get('/api/support')
 def support_list(db:Session=Depends(get_db),user:User=Depends(logged_in)):
     agent=bool(db.get(SupportAgent,user.id))
+    expire_chats(db)
     query=select(SupportTicket)
     if not agent: query=query.where(SupportTicket.owner==user.id)
-    return {'agent':agent,'tickets':[ticket_json(db,t) for t in db.scalars(query.order_by(SupportTicket.id.desc()))]}
+    else: query=query.where(or_(SupportTicket.owner==user.id,SupportTicket.channel!='chat',
+                               (SupportTicket.closed.is_(False) & or_(SupportTicket.agent.is_(None),SupportTicket.agent==user.id))))
+    online=db.scalar(select(func.count()).select_from(SupportPresence).where(SupportPresence.seen>support_now()-timedelta(seconds=45)))
+    return {'agent':agent,'online':bool(online),'tickets':[ticket_json(db,t,user.id) for t in db.scalars(query.order_by(SupportTicket.id.desc()))]}
 
 
 @app.post('/api/support')
@@ -891,16 +928,57 @@ def new_ticket(data:TicketInput,db:Session=Depends(get_db),user:User=Depends(log
     t=SupportTicket(owner=user.id,category=data.category,channel=data.channel,subject=data.subject,
                     serial=tree.code if tree else None,model=get_model(tree.model_code,tree.code)['name'] if tree else None)
     db.add(t);db.flush()
+    if t.channel=="chat":
+        db.add(LiveLease(ticket=t.id,tree_id=data.tree_id,customer_seen=support_now()))
     db.add(SupportMessage(ticket=t.id,by_agent=False,body=data.body))
     db.commit()
     return {'id':t.id}
+
+
+@app.post('/api/support/{ticket_id}/accept')
+def accept_chat(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    t=support_ticket(db,user,ticket_id,True)
+    if t.owner==user.id or t.channel!='chat' or t.closed:
+        raise HTTPException(403,'Сесията не може да бъде приета.')
+    claimed=db.execute(update(SupportTicket).where(SupportTicket.id==t.id,SupportTicket.agent.is_(None),
+                       SupportTicket.closed.is_(False)).values(agent=user.id))
+    if not claimed.rowcount: raise HTTPException(409,'Сесията вече е поета.')
+    lease=db.get(LiveLease,t.id)
+    if not lease:  # A request opened before live windows were introduced.
+        lease=LiveLease(ticket=t.id,customer_seen=support_now())
+        db.add(lease)
+    lease.agent_seen=support_now()
+    db.commit()
+    return {'ok':True}
+
+
+@app.post('/api/support/{ticket_id}/pulse')
+def pulse_chat(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    t=support_ticket(db,user,ticket_id,True)
+    lease=db.get(LiveLease,t.id)
+    if t.channel!='chat' or t.closed or user.id not in (t.owner,t.agent):
+        raise HTTPException(409,'Сесията не е активна.')
+    if lease:
+        if user.id==t.owner: lease.customer_seen=support_now()
+        else: lease.agent_seen=support_now()
+        db.commit()
+    return {'ok':True}
 
 
 @app.get('/api/support/{ticket_id}')
 def support_thread(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     t=support_ticket(db,user,ticket_id)
     messages=db.scalars(select(SupportMessage).where(SupportMessage.ticket==t.id).order_by(SupportMessage.id))
-    return {**ticket_json(db,t),'messages':[dict(id=m.id,agent=m.by_agent,body=m.body,time=m.created_at.isoformat()+'Z') for m in messages]}
+    stats=None
+    if t.channel=='chat' and not t.closed and user.id==t.agent:
+        lease=db.get(LiveLease,t.id)
+        tree=db.get(Tree,lease.tree_id) if lease and lease.tree_id else None
+        if tree and tree.code==t.serial and can_read(db,db.get(User,t.owner),tree):
+            info=to_tree(db,tree)
+            latest=info['latest_sensors'] or info['latest'] or {}
+            stats={key:latest.get(key) for key in ('power_w','water_pct','oxygen_flow_lph','time')}
+            stats['battery_pct']=(info['simulation'] or {}).get('battery_pct')
+    return {**ticket_json(db,t,user.id),'viewer_agent':user.id!=t.owner,'stats':stats,'messages':[dict(id=m.id,agent=m.by_agent,body=m.body,time=m.created_at.isoformat()+'Z') for m in messages]}
 
 
 @app.post('/api/support/{ticket_id}/reply')
@@ -908,6 +986,7 @@ def support_reply(ticket_id:int,data:SupportReply,db:Session=Depends(get_db),use
     t=support_ticket(db,user,ticket_id,True)
     if t.closed: raise HTTPException(409,'Разговорът е приключен.')
     by_agent=t.owner!=user.id
+    if t.channel=="chat" and not t.agent: raise HTTPException(409,"Изчакай агент да приеме сесията.")
     if by_agent:
         if t.agent not in (None,user.id): raise HTTPException(409,'Друг агент работи по случая.')
         t.agent=user.id

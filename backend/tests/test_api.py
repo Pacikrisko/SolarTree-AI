@@ -632,14 +632,28 @@ def test_support_queue_privacy_and_agent_replies():
         with SessionLocal() as db:
             db.add(SupportAgent(user_id=account['user']['id']))
             db.commit()
-        owner,other,agent=profiles
-        case=c.post('/api/support',headers=owner,json={'subject':'WiFi problem','category':'connection','channel':'chat','body':'Connection interrupted.'}).json()
+        _,other,agent=profiles
+        owner=auth(c)
+        tree=c.get("/api/trees",headers=owner).json()[0]
+        case=c.post('/api/support',headers=owner,json={'subject':'WiFi problem','category':'connection','channel':'chat','body':'Connection interrupted.','tree_id':tree['id']}).json()
         path=f"/api/support/{case['id']}"
         assert c.get(path,headers=other).status_code==404
         assert c.post(path+'/reply',headers=other,json={'body':'Hello'}).status_code==404
         assert c.get('/api/support',headers=agent).json()['agent']
+        assert c.post('/api/support/presence',headers=agent).status_code==200
+        assert c.get('/api/support',headers=owner).json()['online']
+        assert c.post(path+'/reply',headers=agent,json={'body':'Hello'}).status_code==409
+        before=c.get(path,headers=agent).json()
+        assert before['stats'] is None and before['serial'] is None
+        assert c.post(path+'/accept',headers=agent).status_code==200
+        active=c.get(path,headers=agent).json()
+        assert active['serial']==tree['code'] and 'power_w' in active['stats']
+        assert c.get('/api/trees/'+str(tree['id']),headers=agent).status_code==404
         assert c.post(path+'/reply',headers=agent,json={'body':'How can I help?'}).status_code==200
         thread=c.get(path,headers=owner).json()
         assert len(thread['messages'])==2 and thread['agent']=='Support 2'
         assert c.post(path+'/close',headers=owner).status_code==200
-        assert c.post(path+'/reply',headers=agent,json={'body':'Hello'}).status_code==409
+        assert c.post(path+'/reply',headers=agent,json={'body':'Hello'}).status_code==404
+
+        assert c.get(path,headers=agent).status_code==404
+        assert not any(r['id']==case['id'] for r in c.get('/api/support',headers=agent).json()['tickets'])

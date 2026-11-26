@@ -183,3 +183,17 @@ class SupportMessage(Base):
     by_agent: Mapped[bool] = mapped_column()
     body: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SupportPresence(Base):
+    __tablename__ = 'support_presence'
+    agent: Mapped[int] = mapped_column(ForeignKey('support_agents.user_id'), primary_key=True)
+    seen: Mapped[datetime] = mapped_column(DateTime)
+
+
+class LiveLease(Base):
+    __tablename__ = 'support_live_leases'
+    ticket: Mapped[int] = mapped_column(ForeignKey('support_tickets.id'), primary_key=True)
+    tree_id: Mapped[int | None] = mapped_column(nullable=True)
+    customer_seen: Mapped[datetime] = mapped_column(DateTime)
+    agent_seen: Mapped[datetime | None] = mapped_column(DateTime)

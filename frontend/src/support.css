@@ -1,0 +1,16 @@
+.desk-heading,.desk-channels,.desk-readings{display:flex;align-items:center;gap:1rem}
+.desk-heading{margin:1rem 0 1.5rem}
+.desk-heading>svg{color:#6ea23f;width:2.4rem;height:2.4rem}
+.desk-heading h1,.desk-heading h2{margin:0}
+.support-desk .panel,.desk-window .panel{padding:clamp(1rem,3vw,2rem);min-width:0}
+.desk-channels{flex-wrap:wrap}
+.desk-channels button,.desk-readings>div{border-radius:12px;border:1px solid #80948066;padding:.9rem;background:transparent;color:inherit;flex:1}
+.desk-channels button{display:flex;align-items:center;gap:.6rem;cursor:pointer}
+.desk-channels button[aria-pressed=true]{background:#82b96526;border-color:#70a952}
+.desk-window{max-width:46rem;padding:1rem;margin:auto}
+.desk-readings{flex-wrap:wrap;gap:.4rem}.desk-readings strong{display:block}
+.desk-log{display:grid;gap:.65rem;overflow:auto;max-height:42vh;margin:1rem 0;overscroll-behavior:contain}
+.desk-log article{justify-self:start;max-width:88%;border-radius:12px;background:#80948020;padding:.65rem .9rem;overflow-wrap:anywhere}
+.desk-log article.own{justify-self:end;background:#82b96530}
+.desk-log article p{margin:.25rem 0;white-space:pre-wrap}
+.warranty-label,.desk-status{font-size:.85rem}
