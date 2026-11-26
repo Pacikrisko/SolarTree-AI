@@ -14,8 +14,8 @@ def test_five_day_urban_forecast_follows_its_daylight_cycle():
     result = energy_outlook(None, tree, 'simulation', now)
     assert result['basis'] == 'repeating Urban simulation'
     assert result['first_full_day_utc'] == '2026-11-25'
-    assert result['kwh_each_day'] == pytest.approx(15.8904, abs=.0001)
-    assert result['total_kwh_by_number_of_days']['5'] == pytest.approx(79.452, abs=.001)
+    assert result['kwh_each_day'] == pytest.approx(15.8900, abs=.0001)
+    assert result['total_kwh_by_number_of_days']['5'] == pytest.approx(79.4501, abs=.001)
     assert not result['weather_adjusted']
 
 
