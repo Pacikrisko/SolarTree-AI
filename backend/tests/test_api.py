@@ -620,3 +620,26 @@ def test_three_profile_limit_and_owner_departure():
         assert c.get(url,headers=profiles[0]).status_code==404
         assert c.get(url,headers=profiles[1]).status_code==200
         assert add(profiles[3]).json()['id']==tree_id
+
+def test_support_queue_privacy_and_agent_replies():
+    from app.database import SessionLocal
+    from app.models import SupportAgent
+    with TestClient(app) as c:
+        profiles=[]
+        for i in range(3):
+            account=c.post('/api/auth/register',json={'name':f'Support {i}','email':f'support{i}@example.org','password':'TestPassword654'}).json()
+            profiles.append({'Authorization':'Bearer '+account['access_token']})
+        with SessionLocal() as db:
+            db.add(SupportAgent(user_id=account['user']['id']))
+            db.commit()
+        owner,other,agent=profiles
+        case=c.post('/api/support',headers=owner,json={'subject':'WiFi problem','category':'connection','channel':'chat','body':'Connection interrupted.'}).json()
+        path=f"/api/support/{case['id']}"
+        assert c.get(path,headers=other).status_code==404
+        assert c.post(path+'/reply',headers=other,json={'body':'Hello'}).status_code==404
+        assert c.get('/api/support',headers=agent).json()['agent']
+        assert c.post(path+'/reply',headers=agent,json={'body':'How can I help?'}).status_code==200
+        thread=c.get(path,headers=owner).json()
+        assert len(thread['messages'])==2 and thread['agent']=='Support 2'
+        assert c.post(path+'/close',headers=owner).status_code==200
+        assert c.post(path+'/reply',headers=agent,json={'body':'Hello'}).status_code==409
