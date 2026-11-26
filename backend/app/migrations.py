@@ -9,6 +9,8 @@ def upgrade(engine):
         ):
             conn.execute(text("""UPDATE trees SET location='Stara Zagora', lat=42.4258, lng=25.6345
                 WHERE code='IVAN-TREE-0001' AND lat IS NULL AND lng IS NULL"""))
+        if inspector.has_table('device_samples') and 'hydrogen_flow_lph' not in {c['name'] for c in inspector.get_columns('device_samples')}:
+            conn.execute(text('ALTER TABLE device_samples ADD COLUMN hydrogen_flow_lph FLOAT'))
         if inspector.has_table("users") and "session_version" not in {c["name"] for c in inspector.get_columns("users")}:
             conn.execute(text("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0"))
         if inspector.has_table("users") and "is_admin" not in {c["name"] for c in inspector.get_columns("users")}:

@@ -156,7 +156,7 @@ def to_tree(db: Session, tree: Tree):
     open_alerts=db.scalar(select(func.count()).select_from(Alert).where(Alert.tree_id==tree.id,Alert.acknowledged.is_(False))) or 0
     services=maintenance_for(db,tree)
     return {'id':tree.id,'code':tree.code,'name':tree.name,'kind':tree.kind,
-            'model':get_model(tree.model_code),
+            'model':get_model(tree.model_code, tree.code),
             'location':tree.location,'lat':tree.lat,'lng':tree.lng,
             'latest':to_reading(last) if last else None,
             'simulation':operating, 'open_alerts':open_alerts,
@@ -345,12 +345,13 @@ def change_password(data:ChangePasswordIn,db:Session=Depends(get_db),user:User=D
 @app.post('/api/pair/resolve')
 def pair_resolve(data:PairIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     reg=verify_pair(db,data.code,data.claim_token,user)
-    return {'code':reg.code,'model':get_model(reg.model_code),'kind':reg.kind}
+    return {'code':reg.code,'model':get_model(reg.model_code, reg.code),'kind':reg.kind}
 
 class ScanIn(BaseModel):
     payload: str = Field(min_length=15,max_length=1000)
 
 class SensorIn(BaseModel):
+    hydrogen_flow_lph: float | None = Field(default=None,ge=0,le=200000)
     temperature_c: float | None = Field(default=None,ge=-50,le=150)
     humidity_pct: float | None = Field(default=None,ge=0,le=100)
     mq8_adc_raw: int | None = Field(default=None,ge=0,le=65535)
@@ -386,7 +387,7 @@ def pair_session_status(session_id:int,db:Session=Depends(get_db),user:User=Depe
         session.status='expired';db.commit()
     tree=db.get(Tree,session.tree_id) if session.status=='completed' and session.tree_id else None
     return {'status':session.status,'tree_id':tree.id if tree else None,
-            'tree_name':tree.name if tree else None,'model':get_model(tree.model_code)['name'] if tree else None}
+            'tree_name':tree.name if tree else None,'model':get_model(tree.model_code, tree.code)['name'] if tree else None}
 
 def mobile_session(db:Session,token:str)->MobilePairSession:
     if len(token)>128 or len(token)<32:
@@ -433,13 +434,13 @@ def phone_scan(token:str,data:ScanIn,db:Session=Depends(get_db)):
         session.attempts+=1;db.commit()
         raise
     tree=Tree(code=reg.code,model_code=reg.model_code,kind=reg.kind,owner_id=user.id,
-              name=get_model(reg.model_code)['name'],location='Добавено чрез QR')
+              name=get_model(reg.model_code, reg.code)['name'],location='Добавено чрез QR')
     candidate=tree
     tree=attach_device(db,reg,user,tree,claim)
     session.status='completed';session.tree_id=tree.id
     if DEMO_MODE and candidate is tree and not is_urban_simulator(tree): add_demo_urban_history(db,tree)
     db.commit();initialize_maintenance(db)
-    return {'ok':True,'name':tree.name,'model':get_model(tree.model_code)['name']}
+    return {'ok':True,'name':tree.name,'model':get_model(tree.model_code, tree.code)['name']}
 
 @app.get('/api/trees/{tree_id}/resources')
 def resources(tree_id: int, water_fill_pct: float = Query(default=100.0, ge=0, le=100),
@@ -448,7 +449,7 @@ def resources(tree_id: int, water_fill_pct: float = Query(default=100.0, ge=0, l
               efficiency: float = Query(default=0.50, gt=0, le=1),
               db: Session = Depends(get_db), user: User = Depends(logged_in)):
     tree = find_tree(db, tree_id, user)
-    model = get_model(tree.model_code)
+    model = get_model(tree.model_code, tree.code)
     if not model.get('water_tank_l') or not model.get('hydrogen_tank_l'):
         raise HTTPException(status_code=404, detail='За този модел няма данни за резервоарите.')
     try:
@@ -529,7 +530,7 @@ def tree_detail(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_
 @app.get('/api/trees/{tree_id}/config')
 def get_tree_config(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     tree=find_tree(db,tree_id,user)
-    return {'tree_id':tree.id,**get_model(tree.model_code)}
+    return {'tree_id':tree.id,**get_model(tree.model_code, tree.code)}
 
 @app.get('/api/trees/{tree_id}/media')
 def get_tree_media(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
@@ -557,22 +558,32 @@ def tree_oxygen(tree_id:int,limit:int=240,db:Session=Depends(get_db),user:User=D
     tree=find_tree(db,tree_id,user)
     last=latest_reading(db,tree)
     # Keep virtual history and device telemetry separate; never report a mixed total as measured.
-    if last is None:
+    limit=max(2,min(limit,500))
+    samples=[]
+    if tree.model_code=='ST-IVAN-P1':
+        samples=db.scalars(select(DeviceSample).where(DeviceSample.tree_id==tree.id,
+            or_(DeviceSample.oxygen_flow_lph.is_not(None),DeviceSample.hydrogen_flow_lph.is_not(None)))
+            .order_by(desc(DeviceSample.time)).limit(limit)).all()
+    if last is None and not samples:
         return {'tree_id':tree.id,'points':[],'total_l':0,'current_flow_lph':None,
                 'basis':'unavailable','note':'Няма налични измервания.'}
-    rows=list(reversed(recent_readings(db,tree,max(2,min(limit,500)),last.source)))
+    rows=recent_readings(db,tree,limit,'device' if samples else last.source)
+    rows=sorted([*rows,*samples],key=lambda row:row.time)[-limit:]
     points=[]; total=0.0; prev=None
     for r in rows:
-        if r.oxygen_flow_lph is None:
+        flow=r.oxygen_flow_lph
+        if flow is None and isinstance(r,DeviceSample) and r.hydrogen_flow_lph is not None:
+            flow=r.hydrogen_flow_lph/2
+        if flow is None:
             prev=None
             continue
         if prev is not None:
-            delta=(r.time-prev.time).total_seconds()/3600
+            delta=(r.time-prev[0]).total_seconds()/3600
             if 0<delta<=.5:
-                total+=(prev.oxygen_flow_lph+r.oxygen_flow_lph)/2 * delta
-        points.append({'time':r.time.isoformat()+'Z','oxygen_flow_lph':round(r.oxygen_flow_lph,2),
-                       'cumulative_l':round(total,2),'basis':r.oxygen_basis,'source':r.source})
-        prev=r
+                total+=(prev[1]+flow)/2 * delta
+        points.append({'time':r.time.isoformat()+'Z','oxygen_flow_lph':round(flow,2),
+                       'cumulative_l':round(total,2),'basis':r.oxygen_basis,'source':getattr(r,'source','device')})
+        prev=(r.time,flow)
     return {'tree_id':tree.id,'points':points,'total_l':round(total,2),
             'current_flow_lph':round(points[-1]['oxygen_flow_lph'],2) if points else None,
             'basis':points[-1]['basis'] if points else 'unavailable',

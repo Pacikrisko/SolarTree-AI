@@ -117,6 +117,12 @@ class DeviceSample(Base):
     water_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     oxygen_flow_lph: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    hydrogen_flow_lph: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    @property
+    def oxygen_basis(self):
+        return 'estimated' if self.hydrogen_flow_lph is not None and self.oxygen_flow_lph is None else 'measured'
+
 
 class ChatExchange(Base):
     __tablename__ = 'chat_exchanges'

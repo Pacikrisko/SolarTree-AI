@@ -54,7 +54,7 @@ async function main() {
         await page.waitForLoadState('networkidle')
         assert.equal(new URL(page.url()).hash,new URL(url).hash)
         page.off('request',watch)
-        const expected = {overview:['readings'],detail:['oxygen','readings'],insights:['forecast','oxygen']}
+        const expected = {overview:['oxygen'],detail:['oxygen','readings'],insights:['forecast','oxygen']}
         assert.deepEqual([...histories].sort(),expected[section] || [],section+' data requests')
         assert.ok(await page.locator('h1').first().innerText())
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'overflow '+section+' '+width)

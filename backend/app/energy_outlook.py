@@ -25,7 +25,7 @@ def recent_daily_energy(db, tree_id, source, midnight):
 def energy_outlook(db, tree, source, now):
     """Next full UTC days under a stated repeat-day assumption, without weather input."""
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
-    rating = get_model(tree.model_code)['rated_solar_w']
+    rating = get_model(tree.model_code, tree.code)['rated_solar_w']
     details = {}
     if is_urban_simulator(tree):
         # Integral of the simulator's sine curve from sunrise to sunset.

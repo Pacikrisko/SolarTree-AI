@@ -20,7 +20,7 @@ def is_urban_simulator(tree: Tree) -> bool:
 
 def urban_sample(tree: Tree, when: datetime):
     """A repeatable 24-hour operating cycle. All timestamps are naive UTC, as in Reading."""
-    model = get_model(tree.model_code)
+    model = get_model(tree.model_code, tree.code)
     # Scenario sunrise is 05:00 UTC. Start with a full water tank at each sunrise.
     hour = (when.hour + when.minute / 60 - 5) % 24
     phase = math.pi * min(hour, URBAN_DAYLIGHT_HOURS) / URBAN_DAYLIGHT_HOURS
