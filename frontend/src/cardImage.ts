@@ -1,7 +1,7 @@
 const cardArt: Record<string,string> = {
   'IVAN-TREE-0001':'prototype',
-  'URBAN-TREE-0001':'urban-straight',
-  'URBAN-TREE-0002':'urban-curved',
+  'SOLIX-ARC-0001':'urban-straight',
+  'SOLIX-HALO-0002':'urban-curved',
 }
 
 export function cardImage(code:string){

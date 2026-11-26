@@ -18,7 +18,7 @@ def seed_demo(db: Session):
         ('ST-M6-1001','ST-M6','private','DEMO-PRIVATE-PAIR-2026','DEMO-PRIVATE-DEVICE-KEY-2026'),
         ('ST-M8-2001','ST-M8','municipal','DEMO-MUNICIPAL-PAIR-2026','DEMO-MUNICIPAL-DEVICE-KEY-2026'),
         ('IVAN-TREE-0001','ST-IVAN-P1','private','IVAN-PROTOTYPE-PAIR-2026','IVAN-PROTOTYPE-DEVICE-KEY-2026'),
-        ('URBAN-TREE-0001','ST-URBAN-2KW','private','URBAN-2KW-PAIR-2026','URBAN-2KW-DEVICE-KEY-2026'),
+        ('SOLIX-ARC-0001','ST-URBAN-2KW','private','URBAN-2KW-PAIR-2026','URBAN-2KW-DEVICE-KEY-2026'),
     ]:
         if not db.scalar(select(DeviceRegistration).where(DeviceRegistration.code==code)):
             db.add(DeviceRegistration(code=code,model_code=model,kind=kind,claim_hash=sha256(claim.encode()).hexdigest(),telemetry_hash=sha256(device.encode()).hexdigest()))

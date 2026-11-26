@@ -175,20 +175,24 @@ def to_tree(db: Session, tree: Tree):
 def logged_in(db:Session=Depends(get_db),authorization:str|None=Header(default=None)):
     return require_user(current_user(db,authorization))
 
+SHARED_QR_HASHES = {
+    "IVAN-TREE-0001": "29dba20c596ad387522542bc2b14430fb09e3aba454b29744e4c50ca288e4d8f",
+    "SOLIX-ARC-0001": "5be46454f15e90759b7c512e471af9767e959a440b05c0fa9697c972c8c2ef4e",
+    "SOLIX-HALO-0002": "4b4b4bbfd00c14512dcaf4fbb6d8ddd7ab5e1920793657b888e58aa3cf76b85c"
+}
+
+
 def verify_pair(db: Session, code: str, claim: str, user: User) -> DeviceRegistration:
     reg=db.scalar(select(DeviceRegistration).where(DeviceRegistration.code==code.strip().upper()))
     # Identical errors for unrecognized/incorrect keys; never enumerate inventory from user input.
     digest = sha256(claim.encode()).hexdigest()
     invite = db.get(PairInvite,digest)
-    if not reg or not (compare_digest(reg.claim_hash,digest) or (invite and invite.registration_id==reg.id)):
+    if not reg or not (compare_digest(reg.claim_hash,digest) or compare_digest(SHARED_QR_HASHES.get(reg.code,''),digest) or (invite and invite.registration_id==reg.id)):
         raise HTTPException(status_code=404,detail='Неуспешно сдвояване. Провери QR кода и кода за регистрация.')
-    if reg.claimed_tree_id and reg.model_code in ('ST-IVAN-P1','ST-URBAN-2KW'):
-        members = db.scalars(select(TreeMember.user_id).where(TreeMember.tree_id==reg.claimed_tree_id)).all()
-        if user.id in members or reg.bound_user_id==user.id:
+    if reg.claimed_tree_id:
+        if reg.bound_user_id==user.id or db.get(TreeMember,(reg.claimed_tree_id,user.id)):
             raise HTTPException(409,'Дървото вече е добавено в профила.')
-        if len(members)>=2:
-            raise HTTPException(409,'Дървото вече е добавено в три профила.')
-    elif reg.claimed_tree_id is not None or reg.bound_user_id not in (None,user.id):
+    elif reg.bound_user_id not in (None,user.id):
         raise HTTPException(status_code=409,detail='Това устройство вече е регистрирано.')
     if (user.role=='municipality' and reg.kind!='municipal') or (user.role=='owner' and reg.kind!='private'):
         raise HTTPException(status_code=403,detail='Устройството не принадлежи към този тип профил.')

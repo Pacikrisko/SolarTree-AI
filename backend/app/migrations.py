@@ -5,6 +5,10 @@ from .catalog import get_model
 def upgrade(engine):
     with engine.begin() as conn:
         inspector = inspect(conn)
+        for table, column in [('trees','code'),('device_registrations','code'),('support_tickets','serial'),('device_warranties','serial')]:
+            if inspector.has_table(table) and column in {c['name'] for c in inspector.get_columns(table)}:
+                for old,new in [('URBAN-TREE-0001','SOLIX-ARC-0001'),('URBAN-TREE-0002','SOLIX-HALO-0002')]:
+                    conn.execute(text(f'UPDATE {table} SET {column}=:new WHERE {column}=:old'),{'old':old,'new':new})
         if inspector.has_table('trees') and {'code', 'location', 'lat', 'lng'}.issubset(
             column['name'] for column in inspector.get_columns('trees')
         ):
@@ -13,7 +17,7 @@ def upgrade(engine):
         if inspector.has_table('trees') and {'code', 'name'}.issubset(
             column['name'] for column in inspector.get_columns('trees')
         ):
-            for serial in ('URBAN-TREE-0001', 'URBAN-TREE-0002'):
+            for serial in ('SOLIX-ARC-0001', 'SOLIX-HALO-0002'):
                 name = get_model('ST-URBAN-2KW', serial)['name']
                 conn.execute(text("""
                     UPDATE trees SET name=:name
@@ -24,7 +28,7 @@ def upgrade(engine):
         if inspector.has_table('support_tickets'):
             conn.execute(text("""
                 UPDATE support_tickets SET model=CASE
-                    WHEN model='SolarTree Urban 5K' OR serial='URBAN-TREE-0002' THEN 'Solix Halo 5K'
+                    WHEN model='SolarTree Urban 5K' OR serial='SOLIX-HALO-0002' THEN 'Solix Halo 5K'
                     WHEN model='SolarTree Prototype P1' THEN 'Solix Prototype P1'
                     WHEN model='SolarTree Compact M6' THEN 'Solix Compact M6'
                     WHEN model='SolarTree Urban M8' THEN 'Solix Municipal M8'

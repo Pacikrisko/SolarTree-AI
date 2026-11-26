@@ -10,7 +10,7 @@ from app.models import Reading, Tree
 
 def test_five_day_urban_forecast_follows_its_daylight_cycle():
     now = datetime(2026, 11, 24, 23, tzinfo=timezone.utc)
-    tree = Tree(id=1, name='Centere', code='URBAN-TREE-0001', model_code='ST-URBAN-2KW')
+    tree = Tree(id=1, name='Centere', code='SOLIX-ARC-0001', model_code='ST-URBAN-2KW')
     result = energy_outlook(None, tree, 'simulation', now)
     assert result['basis'] == 'repeating Urban simulation'
     assert result['first_full_day_utc'] == '2026-11-25'

@@ -12,10 +12,10 @@ MODELS = {
 }
 
 def get_model(code: str | None, serial: str | None = None) -> dict:
-    if code == 'ST-URBAN-2KW' and serial == 'URBAN-TREE-0002':
+    if code == 'ST-URBAN-2KW' and serial == 'SOLIX-HALO-0002':
         return {**MODELS[code], 'name':'Solix Halo 5K', 'electrolyzer_kw':5, 'fuel_cell_kw':1.5,
                 'oxygen_nominal_lph':625, 'water_tank_l':40, 'hydrogen_tank_l':40,
                 'description':'Електролизер 5 kW, кислород 625 L/h, вода 40 L и водороден съд 40 L.'}
-    if serial == 'URBAN-TREE-0001' and code == 'ST-URBAN-2KW':
+    if serial == 'SOLIX-ARC-0001' and code == 'ST-URBAN-2KW':
         return {**MODELS[code], 'auxiliary_kw':1}
     return MODELS.get(code or '', MODELS['ST-M6'])

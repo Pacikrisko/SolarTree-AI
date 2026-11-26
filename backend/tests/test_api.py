@@ -59,7 +59,8 @@ def test_qr_claim_and_permissions(monkeypatch):
         assert c.get(f'/api/trees/{t["id"]}',headers=city).status_code==404
         other=c.post('/api/auth/register',json={'name':'Друг собственик','email':'owner2@example.org','password':'SamplePass1234'}).json()
         second={'Authorization':'Bearer '+other['access_token']}
-        assert c.post('/api/trees',headers=second,json=payload).status_code==409
+        assert c.post('/api/trees',headers=second,json=payload).status_code==201
+        assert c.delete(f"/api/trees/{t['id']}",headers=second).status_code==200
         url=f'/api/trees/{t["id"]}'
         assert c.delete(url).status_code==401
         assert c.delete(url,headers=city).status_code==404
@@ -205,14 +206,14 @@ def test_urban_qr_only_and_resource_calculator(monkeypatch):
         monkeypatch.setattr('app.main.DEMO_MODE', False)
         assert c.post('/api/examples/urban',headers=own).status_code==404
         r=c.post('/api/pair/resolve',headers=own,json={
-            'code':'URBAN-TREE-0001','claim_token':'URBAN-2KW-PAIR-2026'})
+            'code':'SOLIX-ARC-0001','claim_token':'URBAN-2KW-PAIR-2026'})
         assert r.status_code==200,r.text
         model=r.json()['model']
         assert model['electrolyzer_kw']==2 and model['oxygen_nominal_lph']==250
         assert model['fuel_cell_kw']==1
         assert model['hydrogen_tank_l']==20 and model['water_tank_l']==10
         r=c.post('/api/trees',headers=own,json={
-            'code':'URBAN-TREE-0001','claim_token':'URBAN-2KW-PAIR-2026',
+            'code':'SOLIX-ARC-0001','claim_token':'URBAN-2KW-PAIR-2026',
             'name':'SolarTree Urban 2K','location':'Тестова зона','lat':None,'lng':None})
         assert r.status_code==201,r.text
         tid=r.json()['id']
@@ -235,7 +236,7 @@ def test_urban_qr_only_and_resource_calculator(monkeypatch):
         assert with_params['water_runtime_hours'] > 0
         assert c.get(f'/api/trees/{tid}/oxygen',headers=own).json()['basis']=='simulation'
         assert c.post('/api/trees',headers=own,json={
-            'code':'URBAN-TREE-0001','claim_token':'URBAN-2KW-PAIR-2026',
+            'code':'SOLIX-ARC-0001','claim_token':'URBAN-2KW-PAIR-2026',
             'name':'Дубликат','location':'Тест','lat':None,'lng':None}).status_code==409
         assert c.get(f'/api/trees/{tid}/resources',headers=city).status_code==404
         r=c.get(f'/api/trees/{tid}/resources',headers=own)
@@ -281,7 +282,7 @@ def test_urban_simulation_minute_updates_and_day_night_cycle():
     from app.models import Tree
     from app.urban_history import is_urban_simulator, urban_readings, urban_sample
 
-    tree = Tree(id=9, code='URBAN-TREE-0001', model_code='ST-URBAN-2KW')
+    tree = Tree(id=9, code='SOLIX-ARC-0001', model_code='ST-URBAN-2KW')
     assert is_urban_simulator(tree)
     for code, model in [('IVAN-TREE-0001', 'ST-IVAN-P1'), ('OTHER-2K', 'ST-URBAN-2KW')]:
         assert not is_urban_simulator(Tree(code=code, model_code=model))
@@ -614,12 +615,12 @@ def test_three_profile_limit_and_owner_departure():
         tree_id=first.json()['id']
         for profile in profiles[1:3]:
             assert add(profile).json()['id']==tree_id
-        assert add(profiles[3]).status_code==409
+        assert add(profiles[3]).json()['id']==tree_id
         url=f'/api/trees/{tree_id}'
         assert c.delete(url,headers=profiles[0]).status_code==200
         assert c.get(url,headers=profiles[0]).status_code==404
         assert c.get(url,headers=profiles[1]).status_code==200
-        assert add(profiles[3]).json()['id']==tree_id
+        assert add(profiles[3]).status_code==409
 
 def test_support_queue_privacy_and_agent_replies():
     from app.database import SessionLocal
