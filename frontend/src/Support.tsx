@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react'
-import {Headphones, Mail, MessageCircle, ShieldCheck} from 'lucide-react'
+import {Headphones, Mail, MessageCircle, Send, ShieldCheck} from 'lucide-react'
 import {request} from './api'
 import {getLanguage} from './language'
 import type {Tree} from './types'
@@ -95,7 +95,12 @@ function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>v
     {row.serial&&<p>{row.model} · {row.serial}<br/>{warrantyText(row.warranty)}</p>}
     {row.stats&&<section><h3>{t('Показатели за сесията','Session readings')}</h3><div className="desk-readings">{([['power_w',t('Мощност','Power'),'W'],['oxygen_flow_lph','O₂','L/h'],['water_pct',t('Вода','Water'),'%'],['battery_pct',t('Батерия','Battery'),'%']] as const).map(([k,label,unit])=><div key={k}><small>{label}</small><strong>{row.stats![k]??'—'} {unit}</strong></div>)}</div>{row.stats.time&&<small>{new Date(row.stats.time).toLocaleString()}</small>}</section>}
     </header><div className="desk-log" ref={log} role="log">{row.messages.map(m=><article key={m.id} className={m.agent===row.viewer_agent?'own':''}><span className="desk-author">{(m.agent?row.agent_photo:row.customer_photo)&&<img alt="" src={(m.agent?row.agent_photo:row.customer_photo)!}/>}<strong>{m.agent?row.agent:row.customer}</strong></span> <small>{new Date(m.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</small><p>{m.body}</p></article>)}</div>
-    <footer className="desk-composer">{live&&row.typing&&<small className="desk-typing" role="status">{row.viewer_agent?row.customer:row.agent} {t("пише","is typing")} <i/><i/><i/></small>}{!row.closed&&<>{live&&!row.agent?row.viewer_agent?<button className="btn btn-primary" disabled={busy} onClick={()=>action('accept')}>{t('Приеми сесията','Accept session')}</button>:<p role="status">{t('Заявката е изпратена. Остави прозореца отворен, докато агент приеме.','Request sent. Keep this window open until an agent accepts.')}</p>:<form className="modal-form" onSubmit={e=>{e.preventDefault();void action('reply')}}><label>{t('Съобщение','Message')}<textarea value={draft} onChange={e=>typing(e.target.value)} maxLength={4000} required/></label><button className="btn btn-primary" disabled={busy||!draft.trim()}>{t('Изпрати','Send')}</button></form>}
+    <footer className="desk-composer">{live&&row.typing&&<small className="desk-typing" role="status">{row.viewer_agent?row.customer:row.agent} {t("пише","is typing")} <i/><i/><i/></small>}{!row.closed&&<>{live&&!row.agent?row.viewer_agent?<button className="btn btn-primary" disabled={busy} onClick={()=>action('accept')}>{t('Приеми сесията','Accept session')}</button>:<p role="status">{t('Заявката е изпратена. Остави прозореца отворен, докато агент приеме.','Request sent. Keep this window open until an agent accepts.')}</p>:<form className="modal-form" onSubmit={e=>{e.preventDefault();void action('reply')}}><label>{!live&&t('Съобщение','Message')}<textarea aria-label={t('Съобщение','Message')} placeholder={t('Напиши съобщение…','Write a message…')} onKeyDown={e=>{
+      if(live&&e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){
+        e.preventDefault()
+        if(!e.repeat&&!busy&&draft.trim())e.currentTarget.form?.requestSubmit()
+      }
+    }} value={draft} onChange={e=>typing(e.target.value)} maxLength={4000} required/></label><button className="btn btn-primary" disabled={busy||!draft.trim()} aria-label={t('Изпрати','Send')} title={t('Изпрати','Send')}>{live?<Send size={18}/>:t('Изпрати','Send')}</button></form>}
     {(!row.viewer_agent||row.agent)&&<button className="btn btn-quiet" disabled={busy} onClick={()=>action('close')}>{t('Приключи разговора','End conversation')}</button>}</>}
     {onDelete&&row.channel==="ticket"&&!row.viewer_agent&&<button type="button" className="btn btn-quiet" disabled={busy} onClick={remove}>{t("Изтрий запитването","Delete inquiry")}</button>}</footer>
   </>}</>

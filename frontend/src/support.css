@@ -39,3 +39,15 @@
 .editable-avatar:hover .avatar-edit-hint,.editable-avatar:focus-within .avatar-edit-hint{opacity:1}
 .editable-avatar:focus-within{outline:2px solid var(--app-accent);outline-offset:3px}
 @media(hover:none){.editable-avatar .avatar-edit-hint{opacity:1}}
+
+.support-desk .support-columns>.panel,.desk-window>.panel{border-radius:22px}
+.support-desk .desk-channels button{border-radius:18px}
+.support-desk .modal-form :is(input,select,textarea){box-sizing:border-box;width:100%;background:var(--app-surface);color:var(--app-text);border:1px solid var(--app-edge);border-radius:14px;padding:.65rem .85rem;font:inherit}
+.support-desk .modal-form :is(input,select,textarea):focus-visible{outline:2px solid var(--app-accent);outline-offset:1px}
+.desk-window .desk-log article{border-radius:19px 19px 19px 6px;padding:.6rem .9rem}
+.desk-window .desk-log article.own{border-radius:19px 19px 6px 19px}
+.desk-window .desk-composer form.modal-form{box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.35rem;width:100%;max-width:none;border:1px solid var(--app-edge);background:var(--app-surface);padding:.35rem;border-radius:24px}
+.desk-window .desk-composer form.modal-form:focus-within{border-color:var(--app-accent)}
+.desk-window .desk-composer form.modal-form label{display:block;width:100%;margin:0}
+.desk-window .desk-composer form.modal-form textarea{display:block;box-sizing:border-box;width:100%;margin:0;padding:.55rem .7rem;border:0;outline:0;background:transparent;color:var(--app-text);font:inherit;line-height:1.35}
+.desk-window .desk-composer form.modal-form button{display:grid;place-items:center;width:38px;height:38px;padding:0;border-radius:50%}
