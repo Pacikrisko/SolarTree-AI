@@ -34,7 +34,14 @@ function Conversation({id,live}:{id:number;live:boolean}){
           await post('/support/'+id+'/pulse');lastPulse=Date.now()
         }
         if(active){setRow(item);setNote('');if(item.closed&&live)end(true)}
-      }catch(e){if(active){setRow(null);setNote((e as Error).message)}}
+      }catch(e){
+        if(active){
+          const message=(e as Error).message
+          setRow(null)
+          if(live&&message==='Сесията не е достъпна.')end(true)
+          else setNote(message)
+        }
+      }
       finally{if(active)timer=window.setTimeout(poll,live?2000:5000)}
     }
     void poll()
@@ -94,6 +101,7 @@ export default function Support({trees}:{trees:Tree[]}){
       {desk&&!desk.tickets.length&&<p>{t('Няма запитвания.','No requests yet.')}</p>}</aside>
     <section className="panel">{!desk?<p>{t('Зареждане…','Loading…')}</p>:id?<Conversation key={id} id={id} live={false}/>:desk.agent?<p>{t('Избери входяща заявка, за да видиш описанието и да приемеш разговора.','Select a request to read the description and accept the chat.')}</p>:<form className="modal-form" onSubmit={submit}>
       <div className="desk-channels">{(['ticket','chat'] as const).map(k=><button key={k} type="button" aria-pressed={channel===k} onClick={()=>choose(k)}>{k==='chat'?<MessageCircle/>:<Mail/>}{k==='chat'?t('Чат с агент','Live chat'):t('Писмено запитване','Written request')}</button>)}</div>
+      {channel==='chat'&&!desk.online&&<p>{t('Можеш да изчакаш агент тук или да оставиш писмено запитване за по-късно.','Wait for an agent or leave a written request for later.')}</p>}
       {channel==='chat'&&<p>{t('Чатът се отваря в отделен прозорец. Агентът вижда показателите на избраното дърво само през активната сесия.','Chat opens in a separate window. The agent can view the selected tree’s readings during the active session.')}</p>}
       <label>{t('За кое устройство е запитването?','Which device do you need help with?')}<select value={treeId} onChange={e=>setTree(e.target.value)}><option value="">{t('Общо запитване','General inquiry')}</option>{trees.map(r=><option key={r.id} value={r.id}>{r.name} · {r.code}</option>)}</select></label>
       {tree&&<small className="warranty-label">{warrantyText(tree.warranty_until)}</small>}

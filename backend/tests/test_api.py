@@ -623,17 +623,18 @@ def test_three_profile_limit_and_owner_departure():
 
 def test_support_queue_privacy_and_agent_replies():
     from app.database import SessionLocal
-    from app.models import SupportAgent
+    from app.models import SupportAgent, Tree
     with TestClient(app) as c:
         profiles=[]
         for i in range(3):
             account=c.post('/api/auth/register',json={'name':f'Support {i}','email':f'support{i}@example.org','password':'TestPassword654'}).json()
             profiles.append({'Authorization':'Bearer '+account['access_token']})
+        owner,other,agent=profiles
+        owner_id=c.get('/api/auth/me',headers=owner).json()['id']
         with SessionLocal() as db:
+            db.add(Tree(code='SUPPORT-TEST',name='Support tree',kind='private',location='Test',owner_id=owner_id))
             db.add(SupportAgent(user_id=account['user']['id']))
             db.commit()
-        _,other,agent=profiles
-        owner=auth(c)
         tree=c.get("/api/trees",headers=owner).json()[0]
         case=c.post('/api/support',headers=owner,json={'subject':'WiFi problem','category':'connection','channel':'chat','body':'Connection interrupted.','tree_id':tree['id']}).json()
         path=f"/api/support/{case['id']}"
