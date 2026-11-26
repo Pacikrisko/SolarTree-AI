@@ -317,7 +317,7 @@ function AssistantPage({health,trees,selected,onSelect}:{health:Health|null;tree
   useEffect(()=>{
     let mounted=true
     api.threads().then(rows=>{
-      if(mounted){setItems(rows);setActive(rows[0]??draft(null));setError('')}
+      if(mounted){setItems(rows);setActive(draft(null));setError('')}
     }).catch(err=>{if(mounted)setError(err.message)})
     return ()=>{mounted=false}
   },[attempt])
