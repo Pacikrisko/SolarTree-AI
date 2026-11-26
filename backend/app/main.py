@@ -1,4 +1,4 @@
-"""SolarTree AI API: account-scoped monitoring; advisory-only analytics and chat."""
+"""Solix API: account-scoped monitoring; advisory-only analytics and chat."""
 import os
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
         initialize_maintenance(db)
     yield
 
-app = FastAPI(title='SolarTree AI', version='0.8.0-deploy', lifespan=lifespan)
+app = FastAPI(title='Solix', version='0.8.0-deploy', lifespan=lifespan)
 app.include_router(password_reset_router)
 app.add_middleware(CORSMiddleware, allow_origins=['http://localhost:5173','http://127.0.0.1:5173'],
                    allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
@@ -268,7 +268,7 @@ def register(data:RegisterIn,db:Session=Depends(get_db)):
         raise
     except IntegrityError:
         db.rollback()
-        logging.exception('SolarTree registration integrity error')
+        logging.exception('Solix registration integrity error')
         raise HTTPException(status_code=409,detail='Този имейл вече е регистриран. Опитай Вход.') from None
     except OperationalError as exc:
         db.rollback()
@@ -675,7 +675,7 @@ def simulate(tree_id:int,data:SimIn,db:Session=Depends(get_db),user:User=Depends
         raise HTTPException(status_code=403,detail='Режимът за сценарии е изключен.')
     tree=find_tree(db,tree_id,user)
     if is_urban_simulator(tree):
-        raise HTTPException(status_code=409,detail='Този тестов Urban 2K има автоматична симулация.')
+        raise HTTPException(status_code=409,detail='Това тестово устройство има автоматична симулация.')
     if data.mode=='anomaly':
         metrics=ReadingIn(power_w=0,temperature_c=68,humidity_pct=10,h2_sensor_value=6.7,water_pct=2,
                           oxygen_flow_lph=0,electrolyzer_power_w=0)
@@ -703,7 +703,7 @@ def device_sensors(code:str,metrics:SensorIn,db:Session=Depends(get_db),x_device
     if not(reg and x_device_key and compare_digest(reg.telemetry_hash,digest) and reg.claimed_tree_id==tree.id):
         raise HTTPException(status_code=401,detail='Устройството не е удостоверено.')
     if is_urban_simulator(tree):
-        raise HTTPException(status_code=409,detail='Този сериен номер е за виртуалния Urban 2K.')
+        raise HTTPException(status_code=409,detail='Този сериен номер е за виртуално устройство.')
     if not any(v is not None for v in metrics.model_dump().values()):
         raise HTTPException(status_code=422,detail='Липсват измервания от датчици.')
     sample=DeviceSample(tree_id=tree.id,**metrics.model_dump())
@@ -725,7 +725,7 @@ def device_ingest(code:str,metrics:ReadingIn,db:Session=Depends(get_db),x_device
     if not (per_device_ok or legacy_ok):
         raise HTTPException(status_code=401,detail='Устройството не е удостоверено.')
     if is_urban_simulator(tree):
-        raise HTTPException(status_code=409,detail='Този сериен номер е за виртуалния Urban 2K.')
+        raise HTTPException(status_code=409,detail='Този сериен номер е за виртуалния Solix Arc 2K.')
     return save_reading(db,tree,metrics,'device')
 def thread_filters(user_id, tree_id, conversation_id):
     return (ChatExchange.user_id == user_id, ChatExchange.tree_id == tree_id,

@@ -1,1 +1,1 @@
-"""SolarTree AI demonstration backend."""
+"""Solix demonstration backend."""

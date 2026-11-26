@@ -1,5 +1,6 @@
 """Minimal additive SQLite migration for v0.2 users. Other DBs use Alembic in production."""
 from sqlalchemy import inspect, text
+from .catalog import get_model
 
 def upgrade(engine):
     with engine.begin() as conn:
@@ -9,6 +10,26 @@ def upgrade(engine):
         ):
             conn.execute(text("""UPDATE trees SET location='Stara Zagora', lat=42.4258, lng=25.6345
                 WHERE code='IVAN-TREE-0001' AND lat IS NULL AND lng IS NULL"""))
+        if inspector.has_table('trees'):
+            for serial in ('URBAN-TREE-0001', 'URBAN-TREE-0002'):
+                name = get_model('ST-URBAN-2KW', serial)['name']
+                conn.execute(text("""
+                    UPDATE trees SET name=:name
+                    WHERE code=:serial AND (
+                        lower(name) LIKE '%urban%' OR lower(name)='centere'
+                    )
+                """), {'name': name, 'serial': serial})
+        if inspector.has_table('support_tickets'):
+            conn.execute(text("""
+                UPDATE support_tickets SET model=CASE
+                    WHEN model='SolarTree Urban 5K' OR serial='URBAN-TREE-0002' THEN 'Solix Halo 5K'
+                    WHEN model='SolarTree Prototype P1' THEN 'Solix Prototype P1'
+                    WHEN model='SolarTree Compact M6' THEN 'Solix Compact M6'
+                    WHEN model='SolarTree Urban M8' THEN 'Solix Municipal M8'
+                    ELSE 'Solix Arc 2K' END
+                WHERE model IN ('SolarTree Urban 2K', 'SolarTree Urban 5K',
+                    'SolarTree Prototype P1', 'SolarTree Compact M6', 'SolarTree Urban M8')
+            """))
         if inspector.has_table('device_samples') and 'hydrogen_flow_lph' not in {c['name'] for c in inspector.get_columns('device_samples')}:
             conn.execute(text('ALTER TABLE device_samples ADD COLUMN hydrogen_flow_lph FLOAT'))
         if inspector.has_table("users") and "session_version" not in {c["name"] for c in inspector.get_columns("users")}:

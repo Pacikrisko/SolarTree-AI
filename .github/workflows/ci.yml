@@ -1,4 +1,4 @@
-name: Test SolarTree AI
+name: Test Solix
 on:
   push:
     branches: [main]

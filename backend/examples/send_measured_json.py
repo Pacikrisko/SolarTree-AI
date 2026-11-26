@@ -1,4 +1,4 @@
-"""Forward a sensor record from a real data source to SolarTree AI.
+"""Forward a sensor record from a real data source to Solix.
 
 Requires JSON file with actual sensor measurements, never creates fake values.
 Usage from backend directory:
@@ -19,7 +19,7 @@ OPTIONAL={'oxygen_flow_lph','electrolyzer_power_w'}
 
 
 def main():
-    p=argparse.ArgumentParser(description='Send a real sensor JSON record to SolarTree AI')
+    p=argparse.ArgumentParser(description='Send a real sensor JSON record to Solix')
     p.add_argument('--code',required=True)
     p.add_argument('--file',required=True,help='JSON produced from actual sensors')
     p.add_argument('--base',default='http://127.0.0.1:8000',help='FastAPI address reachable from this computer')

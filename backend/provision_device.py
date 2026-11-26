@@ -12,7 +12,7 @@ from app.migrations import upgrade
 
 
 def main():
-    cli=argparse.ArgumentParser(description='Provision SolarTree device with QR pairing and independent telemetry token')
+    cli=argparse.ArgumentParser(description='Provision Solix device with QR pairing and independent telemetry token')
     cli.add_argument('--code',required=True,help='Unique serial ID e.g. ST-M6-2051')
     cli.add_argument('--model',required=True,choices=MODELS.keys())
     cli.add_argument('--kind',required=True,choices=['private','municipal'])

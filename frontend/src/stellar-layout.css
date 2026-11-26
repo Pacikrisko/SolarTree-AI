@@ -250,3 +250,9 @@
 .support-log p{white-space:pre-wrap}
 .support-desk textarea{min-height:90px;resize:vertical}
 @media(max-width:700px){.support-columns{grid-template-columns:minmax(0,1fr)}}
+
+.solix-brand{display:inline-flex;align-items:center;gap:.65rem;color:inherit;text-decoration:none;font-size:1.4rem;font-weight:800;letter-spacing:-.045em;line-height:1;white-space:nowrap}
+.solix-brand .solix-symbol{display:block;flex:none;border-radius:12px;box-shadow:0 4px 14px #83d96222;transition:transform .2s ease,box-shadow .2s ease}
+.solix-brand:hover .solix-symbol{transform:translateY(-2px);box-shadow:0 6px 18px #83d96250}
+.solix-brand:focus-visible{outline:2px solid var(--app-accent);outline-offset:4px;border-radius:10px}
+@media(prefers-reduced-motion:reduce){.solix-brand .solix-symbol{transition:none}.solix-brand:hover .solix-symbol{transform:none}}

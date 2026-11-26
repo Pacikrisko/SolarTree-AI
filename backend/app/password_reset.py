@@ -67,7 +67,7 @@ def issue_email(email, origin, language):
                              expires_at=now + timedelta(minutes=30)))
         db.commit()
     url = f'{origin}/#/reset-password/{token}'
-    subject, message = ('SolarTree password reset', 'Choose a new password within 30 minutes. If you did not request this, ignore this email.') if language == 'en' else ('Нова парола за SolarTree', 'Избери нова парола до 30 минути. Ако не си заявявал тази промяна, можеш да пренебрегнеш писмото.')
+    subject, message = ('Solix password reset', 'Choose a new password within 30 minutes. If you did not request this, ignore this email.') if language == 'en' else ('Нова парола за Solix', 'Избери нова парола до 30 минути. Ако не си заявявал тази промяна, можеш да пренебрегнеш писмото.')
     try:
         response = httpx.post('https://api.resend.com/emails', timeout=10,
             headers={'Authorization':'Bearer ' + os.environ['RESEND_API_KEY']},

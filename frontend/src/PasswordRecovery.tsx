@@ -1,3 +1,4 @@
+import SolixBrand from './SolixBrand'
 import {useState,type FormEvent} from 'react'
 import {useLanguage,LanguageButton} from './LanguageButton'
 import {getLanguage} from './language'
@@ -33,7 +34,7 @@ export default function PasswordRecovery({hash}:{hash:string}){
     finally{setBusy(false)}
   }
   return <main className="signin stellar-entry">
-    <div className="entry-top"><div className="entry-top-inner"><strong>SolarTree AI</strong><LanguageButton/></div></div>
+    <div className="entry-top"><div className="entry-top-inner"><SolixBrand/><LanguageButton/></div></div>
     <header className="entry-heading" style={{textAlign:'center'}}><h1>{reset?t('Нова парола','New password'):t('Забравена парола','Forgot password')}</h1></header>
     <section className="signin-panel" style={{width:'min(440px,calc(100% - 32px))',margin:'0 auto',padding:24}}>
     {done?<p role="status">{reset?t('Паролата е сменена. Влез с новата парола.','Password changed. Sign in with your new password.'):t('Ако имаш профил с парола на този адрес, ще получиш връзка по имейл. Тя е валидна 30 минути.','If this address has a password account, you will receive a link by email. It expires in 30 minutes.')}</p>

@@ -20,7 +20,7 @@ export function readPairingCode(raw:string):{code:string;claim_token:string}{
       }
     }catch{ /* Unrecognized QR content */ }
   }
-  if(!/^[A-Za-z0-9-]{3,40}$/.test(code)||claim_token.length<12||claim_token.length>200)throw new Error(tr("QR кодът не е за сдвояване със SolarTree."))
+  if(!/^[A-Za-z0-9-]{3,40}$/.test(code)||claim_token.length<12||claim_token.length>200)throw new Error(tr("QR кодът не е за сдвояване със Solix."))
   return {code:code.toUpperCase(),claim_token}
 }
 

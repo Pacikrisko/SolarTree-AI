@@ -25,7 +25,7 @@ export default function AdminPanel(){
   }
   const labels={active:en?'Activated':'Активирано',free:en?'Available':'Свободно',reserved:en?'Reserved':'Запазено за акаунт'}
   return <div className="page-body">
-    <button className="btn btn-primary" onClick={create} disabled={creating||!!keys}>{en?'Create Urban 2K simulator':'Създай симулиран Urban 2K'}</button>
+    <button className="btn btn-primary" onClick={create} disabled={creating||!!keys}>{en?'Create Solix Arc 2K simulator':'Създай симулиран Solix Arc 2K'}</button>
     {error&&<p role="alert">{error}</p>}
     {keys&&<section className="panel" style={{padding:'1rem',overflowWrap:'anywhere'}}>
       <h2>{keys.code}</h2>

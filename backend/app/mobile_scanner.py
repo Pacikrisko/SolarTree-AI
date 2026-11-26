@@ -15,7 +15,7 @@ button,.file{border:0;border-radius:13px;padding:15px;display:block;width:100%;f
 .file{background:#263b32;color:#d9efdc;border:1px solid #56735a}
 input[type=file]{display:none}#state{min-height:44px;padding:12px 14px;background:#1a2924;border:1px solid #3c5549;border-radius:12px;color:#d9e8dc;font-size:13px;line-height:1.6}
 .tip{color:#859b8d;font-size:12px;text-align:center;line-height:1.5}#canvas{display:none}
-</style></head><body><main><div class="brand">✳ <b>SolarTree</b> AI <a style="float:right;color:inherit" href="?lang=@@next@@" lang="@@next@@">@@switch@@</a></div><div><h1>@@heading@@</h1><p class="sub">@@description@@</p></div>
+</style></head><body><main><div class="brand"><a href="/#/overview" style="color:inherit;text-decoration:none"><img src="/solix.svg" width="24" height="24" alt="" style="vertical-align:middle"> <b>Solix</b></a> <a style="float:right;color:inherit" href="?lang=@@next@@" lang="@@next@@">@@switch@@</a></div><div><h1>@@heading@@</h1><p class="sub">@@description@@</p></div>
 <div class="camera"><video id="camera" autoplay playsinline muted></video><div id="fallback">⌗</div></div>
 <div id="state" role="status">@@ready@@</div>
 <button id="start">@@open@@</button>
@@ -48,7 +48,7 @@ document.getElementById('photo').onchange=async(e)=>{const f=e.target.files[0];i
 
 STRINGS = {
   "title": [
-    "SolarTree • Скенер",
+    "Solix • Скенер",
     "SolarTree • Scanner"
   ],
   "heading": [
