@@ -10,7 +10,9 @@ def upgrade(engine):
         ):
             conn.execute(text("""UPDATE trees SET location='Stara Zagora', lat=42.4258, lng=25.6345
                 WHERE code='IVAN-TREE-0001' AND lat IS NULL AND lng IS NULL"""))
-        if inspector.has_table('trees'):
+        if inspector.has_table('trees') and {'code', 'name'}.issubset(
+            column['name'] for column in inspector.get_columns('trees')
+        ):
             for serial in ('URBAN-TREE-0001', 'URBAN-TREE-0002'):
                 name = get_model('ST-URBAN-2KW', serial)['name']
                 conn.execute(text("""
