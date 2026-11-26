@@ -197,3 +197,18 @@ class LiveLease(Base):
     tree_id: Mapped[int | None] = mapped_column(nullable=True)
     customer_seen: Mapped[datetime] = mapped_column(DateTime)
     agent_seen: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class AccountPhoto(Base):
+    __tablename__ = 'account_photos'
+    owner: Mapped[int] = mapped_column(ForeignKey('users.id'), primary_key=True)
+    image: Mapped[str] = mapped_column(Text)
+
+
+class ChatConnection(Base):
+    __tablename__ = 'support_connections'
+    ticket: Mapped[int] = mapped_column(ForeignKey('support_tickets.id'), primary_key=True)
+    accepted: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    dismissed: Mapped[bool] = mapped_column(default=False)
+    customer_typing: Mapped[datetime | None] = mapped_column(DateTime)
+    agent_typing: Mapped[datetime | None] = mapped_column(DateTime)

@@ -14,3 +14,21 @@
 .desk-log article.own{justify-self:end;background:#82b96530}
 .desk-log article p{margin:.25rem 0;white-space:pre-wrap}
 .warranty-label,.desk-status{font-size:.85rem}
+.desk-window{box-sizing:border-box;height:100dvh;display:flex;flex-direction:column;padding:clamp(.4rem,2vw,1rem);gap:.4rem}
+.desk-window .desk-heading{margin:0}.desk-window .desk-heading h1{font-size:clamp(1rem,4vw,1.5rem)}
+.desk-window>.panel{min-height:0;flex:1;display:flex;flex-direction:column;padding:clamp(.45rem,2vw,1rem);gap:.4rem}
+.desk-window .desk-context{flex:0 1 auto;max-height:32%;overflow-y:auto}
+.desk-context h2,.desk-context h3,.desk-context p{margin:.15rem 0}
+.desk-window .desk-log{flex:1;min-height:0;max-height:none;align-content:start;overflow-y:auto;margin:0}
+.desk-window .desk-composer{flex:none;border-top:1px solid #80948055;padding-top:.3rem}
+.desk-window .desk-composer form{display:flex;align-items:end;gap:.4rem;margin:0}
+.desk-window .desk-composer label{flex:1;min-width:0}
+.desk-window .desk-composer textarea{min-height:2.3rem;height:2.6rem;max-height:12vh;resize:none}
+.desk-window .desk-composer .btn{min-height:2rem;padding:.3rem .65rem}
+.desk-author{display:inline-flex;align-items:center;gap:.4rem}.desk-author img{border-radius:50%;width:1.65rem;height:1.65rem}
+.desk-typing i{display:inline-block;width:.3rem;height:.3rem;border-radius:50%;background:currentColor;margin-right:.15rem;animation:desk-dot 1s ease-in-out infinite alternate}
+.desk-typing i:nth-child(2){animation-delay:.15s}.desk-typing i:nth-child(3){animation-delay:.3s}
+@keyframes desk-dot{from{opacity:.35}to{opacity:1;transform:translateY(-2px)}}
+@media(prefers-reduced-motion:reduce){.desk-typing i{animation:none}}
+.stellar-hero .eyebrow:has(.accent-tick){font-size:.9rem;letter-spacing:.02em;line-height:1.5;text-transform:none}
+.top-avatar img,.profile-big-avatar img{width:100%;height:100%;object-fit:cover;border-radius:inherit}

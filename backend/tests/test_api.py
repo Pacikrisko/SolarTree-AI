@@ -647,7 +647,16 @@ def test_support_queue_privacy_and_agent_replies():
         before=c.get(path,headers=agent).json()
         assert before['stats'] is None and before['serial'] is None
         assert c.post(path+'/accept',headers=agent).status_code==200
+        from PIL import Image
+        import io,base64
+        avatar=io.BytesIO()
+        Image.new('RGB',(32,36),'green').save(avatar,format='PNG')
+        photo=c.put('/api/profile/photo',headers=owner,json={'image':base64.b64encode(avatar.getvalue()).decode()})
+        assert photo.status_code==200
+        assert c.get('/api/profile/photo',headers=other).json()['image'] is None
+        assert c.put('/api/profile/photo',headers=owner,json={'image':'invalid'}).status_code==422
         active=c.get(path,headers=agent).json()
+        assert active['customer_photo']==photo.json()['image']
         assert active['serial']==tree['code'] and 'power_w' in active['stats']
         assert c.get('/api/trees/'+str(tree['id']),headers=agent).status_code==404
         assert c.post(path+'/reply',headers=agent,json={'body':'How can I help?'}).status_code==200
@@ -658,3 +667,32 @@ def test_support_queue_privacy_and_agent_replies():
 
         assert c.get(path,headers=agent).status_code==404
         assert not any(r['id']==case['id'] for r in c.get('/api/support',headers=agent).json()['tickets'])
+        assert c.get(path,headers=owner).status_code==404
+        assert not any(r['id']==case['id'] for r in c.get('/api/support',headers=owner).json()['tickets'])
+        assert c.get('/api/support/archive',headers=owner).status_code==403
+        archive=c.get('/api/support/archive',headers=agent).json()
+        assert any(r['id']==case['id'] and set(r)=={'id','category','accepted'} for r in archive)
+        assert c.get('/api/support/notices',headers=owner).json()[0]['id']==case['id']
+        assert c.post(path+'/dismiss',headers=other).status_code==404
+        assert c.post(path+'/dismiss',headers=owner).status_code==200
+        assert c.get('/api/support/notices',headers=owner).json()==[]
+
+        payload={'category':'other','subject':'Testing','body':'Test message','channel':'ticket'}
+        inquiry=c.post('/api/support',headers=owner,json=payload).json()['id']
+        assert c.delete(f'/api/support/{inquiry}',headers=other).status_code==404
+        assert c.delete(f'/api/support/{inquiry}',headers=owner).status_code==200
+        assert c.get(f'/api/support/{inquiry}',headers=agent).status_code==404
+
+        from app.models import LiveLease
+        from datetime import datetime,timedelta,timezone
+        idle=c.post('/api/support',headers=owner,json={**payload,'channel':'chat'}).json()['id']
+        path=f'/api/support/{idle}'
+        assert c.post(path+'/accept',headers=agent).status_code==200
+        assert c.post(path+'/typing',headers=owner).status_code==200
+        assert c.get(path,headers=agent).json()['typing']
+        with SessionLocal() as db:
+            lease=db.get(LiveLease,idle)
+            lease.customer_seen=lease.agent_seen=datetime.now(timezone.utc).replace(tzinfo=None)-timedelta(seconds=181)
+            db.commit()
+        assert c.get(path,headers=agent).status_code==404
+        assert c.post(path+'/typing',headers=owner).status_code==404

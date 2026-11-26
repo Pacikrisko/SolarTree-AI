@@ -24,7 +24,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, desc, func, update, or_, delete
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from .database import Base, engine, get_db, SessionLocal
-from .models import LiveLease, SupportPresence, SupportAgent, DeviceWarranty, SupportTicket, SupportMessage
+from PIL import Image, ImageOps
+from .models import AccountPhoto, ChatConnection, LiveLease, SupportPresence, SupportAgent, DeviceWarranty, SupportTicket, SupportMessage
 from .models import TreeMember, PairInvite, User, Tree, Reading, Alert, Maintenance, DeviceRegistration, MobilePairSession, DeviceSample, ChatExchange
 from .seed import DEMO_MODE, seed_demo
 from .google_login import google_client_id, google_user, verified_claims
@@ -863,6 +864,37 @@ class SupportReply(BaseModel):
     body: Annotated[str, StringConstraints(strip_whitespace=True,min_length=1,max_length=4000)]
 
 
+class PhotoInput(BaseModel):
+    image: Annotated[str, StringConstraints(max_length=90000)]
+
+
+def profile_photo(db,owner):
+    photo=db.get(AccountPhoto,owner) if owner else None
+    return photo.image if photo else None
+
+
+@app.get('/api/profile/photo')
+def my_photo(db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    return {'image':profile_photo(db,user.id)}
+
+
+@app.put('/api/profile/photo')
+def save_photo(data:PhotoInput,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    try:
+        raw=base64.b64decode(data.image,validate=True)
+        with Image.open(io.BytesIO(raw),formats=['JPEG','PNG','WEBP']) as image:
+            if max(image.size)>1024: raise ValueError()
+            square=ImageOps.fit(image.convert('RGB'),(96,96))
+            output=io.BytesIO()
+            square.save(output,format='JPEG',quality=85)
+    except (ValueError,OSError,Image.DecompressionBombError):
+        raise HTTPException(422,'Невалидно изображение.')
+    avatar='data:image/jpeg;base64,'+base64.b64encode(output.getvalue()).decode()
+    db.merge(AccountPhoto(owner=user.id,image=avatar))
+    db.commit()
+    return {'image':avatar}
+
+
 def support_now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -876,8 +908,8 @@ async def private_support_responses(request:Request,call_next):
 
 
 def expire_chats(db):
-    cutoff=support_now()-timedelta(minutes=2)
-    expired=select(LiveLease.ticket).where(or_(LiveLease.customer_seen<cutoff,LiveLease.agent_seen<cutoff))
+    cutoff=support_now()-timedelta(minutes=3)
+    expired=select(LiveLease.ticket).where(LiveLease.customer_seen<cutoff,or_(LiveLease.agent_seen.is_(None),LiveLease.agent_seen<cutoff))
     db.execute(update(SupportTicket).where(SupportTicket.closed.is_(False),SupportTicket.id.in_(expired)).values(closed=True))
     db.commit()
 
@@ -905,7 +937,7 @@ def support_ticket(db,user,ticket_id,lock=False):
     ticket=db.scalar(query.with_for_update() if lock else query)
     if not ticket or (ticket.owner!=user.id and not db.get(SupportAgent,user.id)):
         raise HTTPException(404,'Запитването не е намерено.')
-    if ticket.owner!=user.id and ticket.channel=="chat" and (ticket.closed or ticket.agent not in (None,user.id)):
+    if ticket.channel=="chat" and (ticket.closed or (ticket.owner!=user.id and ticket.agent not in (None,user.id))):
         raise HTTPException(404,"Сесията не е достъпна.")
     return ticket
 
@@ -915,6 +947,7 @@ def support_list(db:Session=Depends(get_db),user:User=Depends(logged_in)):
     agent=bool(db.get(SupportAgent,user.id))
     expire_chats(db)
     query=select(SupportTicket)
+    query=query.where(or_(SupportTicket.channel!="chat",SupportTicket.closed.is_(False)))
     if not agent: query=query.where(SupportTicket.owner==user.id)
     else: query=query.where(or_(SupportTicket.owner==user.id,SupportTicket.channel!='chat',
                                (SupportTicket.closed.is_(False) & or_(SupportTicket.agent.is_(None),SupportTicket.agent==user.id))))
@@ -935,6 +968,44 @@ def new_ticket(data:TicketInput,db:Session=Depends(get_db),user:User=Depends(log
     return {'id':t.id}
 
 
+@app.get('/api/support/archive')
+def support_archive(db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    if not db.get(SupportAgent,user.id): raise HTTPException(403,'Само за поддръжката.')
+    expire_chats(db)
+    rows=db.execute(select(SupportTicket.id,SupportTicket.category,ChatConnection.accepted)
+        .outerjoin(ChatConnection,ChatConnection.ticket==SupportTicket.id)
+        .where(SupportTicket.channel=='chat',SupportTicket.closed.is_(True))
+        .order_by(SupportTicket.id.desc()))
+    return [dict(id=r.id,category=r.category,accepted=r.accepted.isoformat()+'Z' if r.accepted else None) for r in rows]
+
+
+@app.get('/api/support/notices')
+def support_notices(db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    rows=db.scalars(select(ChatConnection).join(SupportTicket,SupportTicket.id==ChatConnection.ticket)
+        .where(SupportTicket.owner==user.id,ChatConnection.dismissed.is_(False)).order_by(ChatConnection.accepted.desc()))
+    return [dict(id=r.ticket,time=r.accepted.isoformat()+'Z') for r in rows]
+
+
+@app.post('/api/support/{ticket_id}/dismiss')
+def dismiss_notice(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    row=db.get(SupportTicket,ticket_id)
+    notice=db.get(ChatConnection,ticket_id)
+    if not row or row.owner!=user.id or not notice: raise HTTPException(404)
+    notice.dismissed=True
+    db.commit()
+    return {'ok':True}
+
+
+@app.delete('/api/support/{ticket_id}')
+def delete_inquiry(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    row=support_ticket(db,user,ticket_id,True)
+    if row.channel!='ticket' or row.owner!=user.id: raise HTTPException(403)
+    db.execute(delete(SupportMessage).where(SupportMessage.ticket==ticket_id))
+    db.delete(row)
+    db.commit()
+    return {'ok':True}
+
+
 @app.post('/api/support/{ticket_id}/accept')
 def accept_chat(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     t=support_ticket(db,user,ticket_id,True)
@@ -948,20 +1019,25 @@ def accept_chat(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logge
         lease=LiveLease(ticket=t.id,customer_seen=support_now())
         db.add(lease)
     lease.agent_seen=support_now()
+    db.add(ChatConnection(ticket=t.id))
     db.commit()
     return {'ok':True}
 
 
-@app.post('/api/support/{ticket_id}/pulse')
-def pulse_chat(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+@app.post('/api/support/{ticket_id}/typing')
+def chat_typing(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     t=support_ticket(db,user,ticket_id,True)
     lease=db.get(LiveLease,t.id)
-    if t.channel!='chat' or t.closed or user.id not in (t.owner,t.agent):
+    if t.channel!='chat' or not t.agent or user.id not in (t.owner,t.agent) or not lease:
         raise HTTPException(409,'Сесията не е активна.')
-    if lease:
-        if user.id==t.owner: lease.customer_seen=support_now()
-        else: lease.agent_seen=support_now()
-        db.commit()
+    connection=db.get(ChatConnection,t.id)
+    if not connection:
+        connection=ChatConnection(ticket=t.id,dismissed=True)
+        db.add(connection)
+    now=support_now()
+    if user.id==t.owner: lease.customer_seen=connection.customer_typing=now
+    else: lease.agent_seen=connection.agent_typing=now
+    db.commit()
     return {'ok':True}
 
 
@@ -978,7 +1054,10 @@ def support_thread(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(lo
             latest=info['latest_sensors'] or info['latest'] or {}
             stats={key:latest.get(key) for key in ('power_w','water_pct','oxygen_flow_lph','time')}
             stats['battery_pct']=(info['simulation'] or {}).get('battery_pct')
-    return {**ticket_json(db,t,user.id),'viewer_agent':user.id!=t.owner,'stats':stats,'messages':[dict(id=m.id,agent=m.by_agent,body=m.body,time=m.created_at.isoformat()+'Z') for m in messages]}
+    connection=db.get(ChatConnection,t.id) if t.channel=='chat' else None
+    typing=(connection.agent_typing if user.id==t.owner else connection.customer_typing) if connection else None
+    return {**ticket_json(db,t,user.id),'typing':bool(typing and typing>support_now()-timedelta(seconds=5)),
+            'customer_photo':profile_photo(db,t.owner),'agent_photo':profile_photo(db,t.agent),'viewer_agent':user.id!=t.owner,'stats':stats,'messages':[dict(id=m.id,agent=m.by_agent,body=m.body,time=m.created_at.isoformat()+'Z') for m in messages]}
 
 
 @app.post('/api/support/{ticket_id}/reply')
@@ -990,6 +1069,15 @@ def support_reply(ticket_id:int,data:SupportReply,db:Session=Depends(get_db),use
     if by_agent:
         if t.agent not in (None,user.id): raise HTTPException(409,'Друг агент работи по случая.')
         t.agent=user.id
+    if t.channel=='chat':
+        lease=db.get(LiveLease,t.id)
+        connection=db.get(ChatConnection,t.id)
+        if lease:
+            if by_agent: lease.agent_seen=support_now()
+            else: lease.customer_seen=support_now()
+        if connection:
+            if by_agent: connection.agent_typing=None
+            else: connection.customer_typing=None
     db.add(SupportMessage(ticket=t.id,by_agent=by_agent,body=data.body))
     db.commit()
     return {'ok':True}
