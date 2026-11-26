@@ -277,3 +277,6 @@
 .google-signin:not([hidden]) + .signin-form { margin-top: 14px; }
 .google-signin button { color: var(--signin-link); text-decoration: underline; background: transparent; }
 .google-signin[inert] { opacity: .65; }
+
+
+.signin #signin-title {line-height:1.24;padding-block:.06em .12em;overflow:visible}

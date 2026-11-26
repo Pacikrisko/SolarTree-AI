@@ -212,3 +212,9 @@ class ChatConnection(Base):
     dismissed: Mapped[bool] = mapped_column(default=False)
     customer_typing: Mapped[datetime | None] = mapped_column(DateTime)
     agent_typing: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class ChatRating(Base):
+    __tablename__ = 'support_chat_ratings'
+    ticket: Mapped[int] = mapped_column(ForeignKey('support_tickets.id'), primary_key=True)
+    stars: Mapped[int] = mapped_column()

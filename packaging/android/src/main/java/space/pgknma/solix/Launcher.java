@@ -12,7 +12,7 @@ public class Launcher extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        Intent browser = new Intent(Intent.ACTION_VIEW, Uri.parse("https://solartree-ai.onrender.com/"));
+        Intent browser = new Intent(Intent.ACTION_VIEW, Uri.parse("https://solartree-ai.onrender.com/?solixClient=android&build=3"));
         Bundle extras = new Bundle();
         extras.putBinder("android.support.customtabs.extra.SESSION", (IBinder) null);
         browser.putExtras(extras);
@@ -25,3 +25,4 @@ public class Launcher extends Activity {
         finish();
     }
 }
+

@@ -5,6 +5,7 @@ import '@radix-ui/themes/components.css'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import ClientVersion from './ClientVersion'
 import './styles.css'
 import './refresh.css'
 import './solar-theme.css'
@@ -16,5 +17,6 @@ document.documentElement.lang=getLanguage()
 document.documentElement.dataset.theme = localStorage.getItem('solartree_theme') === 'dark' ? 'dark' : 'light'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode><App /></React.StrictMode>
+  <React.StrictMode><ClientVersion><App /></ClientVersion></React.StrictMode>
 )
+

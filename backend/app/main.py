@@ -25,7 +25,7 @@ from sqlalchemy import select, desc, func, update, or_, delete
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from .database import Base, engine, get_db, SessionLocal
 from PIL import Image, ImageOps
-from .models import AccountPhoto, ChatConnection, LiveLease, SupportPresence, SupportAgent, DeviceWarranty, SupportTicket, SupportMessage
+from .models import ChatRating, AccountPhoto, ChatConnection, LiveLease, SupportPresence, SupportAgent, DeviceWarranty, SupportTicket, SupportMessage
 from .models import TreeMember, PairInvite, User, Tree, Reading, Alert, Maintenance, DeviceRegistration, MobilePairSession, DeviceSample, ChatExchange
 from .seed import DEMO_MODE, seed_demo
 from .google_login import google_client_id, google_user, verified_claims
@@ -950,8 +950,8 @@ async def private_support_responses(request:Request,call_next):
 
 
 def expire_chats(db):
-    cutoff=support_now()-timedelta(minutes=3)
-    expired=select(LiveLease.ticket).where(LiveLease.customer_seen<cutoff,or_(LiveLease.agent_seen.is_(None),LiveLease.agent_seen<cutoff))
+    cutoff=support_now()-timedelta(minutes=5)
+    expired=select(LiveLease.ticket).where(LiveLease.agent_seen<=cutoff,LiveLease.agent_seen>=LiveLease.customer_seen)
     db.execute(update(SupportTicket).where(SupportTicket.closed.is_(False),SupportTicket.id.in_(expired)).values(closed=True))
     db.commit()
 
@@ -1077,10 +1077,46 @@ def chat_typing(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logge
         connection=ChatConnection(ticket=t.id,dismissed=True)
         db.add(connection)
     now=support_now()
-    if user.id==t.owner: lease.customer_seen=connection.customer_typing=now
-    else: lease.agent_seen=connection.agent_typing=now
+    if user.id==t.owner: connection.customer_typing=now
+    else: connection.agent_typing=now
     db.commit()
     return {'ok':True}
+
+
+def agent_score(db,agent):
+    mean,count=db.execute(select(func.avg(ChatRating.stars),func.count(ChatRating.ticket))
+        .join(SupportTicket,SupportTicket.id==ChatRating.ticket).where(SupportTicket.agent==agent)).one()
+    return {'average':round(float(mean),1) if count else None,'count':count}
+
+
+@app.get('/api/profile/support-rating')
+def profile_support_rating(db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    return agent_score(db,user.id) if db.get(SupportAgent,user.id) else None
+
+
+class RatingInput(BaseModel):
+    stars: int = Field(ge=1,le=5,strict=True)
+
+
+def rateable_ticket(db,user,ticket_id):
+    ticket=db.scalar(select(SupportTicket).where(SupportTicket.id==ticket_id).with_for_update())
+    if not ticket or ticket.owner!=user.id or ticket.channel!='chat' or not ticket.closed or not ticket.agent:
+        raise HTTPException(404)
+
+
+@app.get('/api/support/{ticket_id}/rating')
+def read_chat_rating(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    rateable_ticket(db,user,ticket_id)
+    rating=db.get(ChatRating,ticket_id)
+    return {'stars':rating.stars if rating else None}
+
+
+@app.put('/api/support/{ticket_id}/rating')
+def rate_chat(ticket_id:int,data:RatingInput,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    rateable_ticket(db,user,ticket_id)
+    db.merge(ChatRating(ticket=ticket_id,stars=data.stars))
+    db.commit()
+    return {'stars':data.stars}
 
 
 @app.get('/api/support/{ticket_id}')
@@ -1098,7 +1134,11 @@ def support_thread(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(lo
             stats['battery_pct']=(info['simulation'] or {}).get('battery_pct')
     connection=db.get(ChatConnection,t.id) if t.channel=='chat' else None
     typing=(connection.agent_typing if user.id==t.owner else connection.customer_typing) if connection else None
-    return {**ticket_json(db,t,user.id),'typing':bool(typing and typing>support_now()-timedelta(seconds=5)),
+    lease=db.get(LiveLease,t.id) if connection else None
+    remaining=None
+    if lease and lease.agent_seen and lease.agent_seen>=lease.customer_seen:
+        remaining=max(0,300-int((support_now()-lease.agent_seen).total_seconds()))
+    return {**ticket_json(db,t,user.id),'remaining':remaining,'rating':agent_score(db,t.agent) if t.agent else None,'typing':bool(typing and typing>support_now()-timedelta(seconds=5)),
             'customer_photo':profile_photo(db,t.owner),'agent_photo':profile_photo(db,t.agent),'viewer_agent':user.id!=t.owner,'stats':stats,'messages':[dict(id=m.id,agent=m.by_agent,body=m.body,time=m.created_at.isoformat()+'Z') for m in messages]}
 
 
@@ -1115,8 +1155,11 @@ def support_reply(ticket_id:int,data:SupportReply,db:Session=Depends(get_db),use
         lease=db.get(LiveLease,t.id)
         connection=db.get(ChatConnection,t.id)
         if lease:
-            if by_agent: lease.agent_seen=support_now()
-            else: lease.customer_seen=support_now()
+            if not by_agent:
+                lease.customer_seen=support_now()
+                lease.agent_seen=None
+            elif lease.agent_seen is None or lease.agent_seen<lease.customer_seen:
+                lease.agent_seen=support_now()
         if connection:
             if by_agent: connection.agent_typing=None
             else: connection.customer_typing=None
@@ -1154,3 +1197,4 @@ if (FRONTEND_DIST / 'index.html').is_file():
         if resolved.is_relative_to(FRONTEND_DIST.resolve()) and resolved.is_file():
             return FileResponse(resolved)
         return FileResponse(FRONTEND_DIST / 'index.html', headers={'Cache-Control':'no-cache'})
+

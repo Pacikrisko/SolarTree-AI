@@ -24,11 +24,32 @@ const categories=()=>({account:t('Профил и достъп','Account access'
 type Ticket={id:number;subject:string;category:keyof ReturnType<typeof categories>;channel:string;model:string|null;serial:string|null;warranty:string|null;customer:string;agent:string|null;closed:boolean}
 type Desk={agent:boolean;online:boolean;tickets:Ticket[]}
 type Stats={power_w:number|null;water_pct:number|null;oxygen_flow_lph:number|null;battery_pct:number|null;time:string|null}
-type Thread=Ticket & {typing:boolean;agent_photo:string|null;customer_photo:string|null;viewer_agent:boolean;stats:Stats|null;messages:{id:number;agent:boolean;body:string;time:string}[]}
+type Score={average:number|null;count:number}
+type Thread=Ticket & {remaining:number|null;rating:Score|null;typing:boolean;agent_photo:string|null;customer_photo:string|null;viewer_agent:boolean;stats:Stats|null;messages:{id:number;agent:boolean;body:string;time:string}[]}
 const state=(r:Ticket)=>r.closed?t('Приключено','Closed'):r.agent?t('Агент · ','Agent · ')+r.agent:t('Очаква агент','Waiting for agent')
 const post=(path:string,data?:unknown)=>request(path,{method:'POST',body:data?JSON.stringify(data):undefined})
 const chatUrl=(id:number)=>location.pathname+'?support-session='+id
 function popup(url:string){return window.open(url,'_blank','popup,width=560,height=740,resizable=yes,scrollbars=yes')}
+const timeoutNotice=()=>t('Когато е твой ред, имаш 5 минути да изпратиш съобщение. Докато чакаш агента, времето не тече.','When it’s your turn, send a message within 5 minutes. There is no time limit while you wait for the agent.')
+function ScoreBadge({score}:{score:Score}){
+  return <small className="agent-score">★ {score.average===null?t('Без оценки','No ratings'):score.average.toLocaleString(getLanguage()==='en'?'en-GB':'bg-BG',{minimumFractionDigits:1})+' / 5 ('+score.count+')'}</small>
+}
+export function ProfileRating(){
+  const [score,setScore]=useState<Score|null>(null)
+  useEffect(()=>{let active=true;request<Score|null>('/profile/support-rating').then(s=>{if(active)setScore(s)}).catch(()=>{});return ()=>{active=false}},[])
+  return score&&<p>{t('Агентски рейтинг','Agent rating')} <ScoreBadge score={score}/></p>
+}
+function SessionRating({id}:{id:number}){
+  const [available,show]=useState(false),[stars,setStars]=useState<number|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('')
+  useEffect(()=>{let active=true;request<{stars:number|null}>('/support/'+id+'/rating').then(r=>{if(active){setStars(r.stars);show(true)}}).catch(()=>{});return ()=>{active=false}},[id])
+  async function submit(value:number){
+    setBusy(true);setError('')
+    try{await request('/support/'+id+'/rating',{method:'PUT',body:JSON.stringify({stars:value})});setStars(value)}
+    catch(e){setError((e as Error).message)}finally{setBusy(false)}
+  }
+  if(!available)return null
+  return <section><h3>{t('Как оценяваш разговора?','How was your conversation?')}</h3><div className="chat-stars">{[1,2,3,4,5].map(n=><button key={n} type="button" disabled={busy} aria-pressed={stars===n} aria-label={n+' / 5'} onClick={()=>submit(n)}>{n<=(stars??0)?'★':'☆'}</button>)}</div><small role="status">{error||(stars?t('Благодарим за оценката!','Thank you for your rating!'):'')}</small></section>
+}
 function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>void}){
   const [row,setRow]=useState<Thread|null>(null),[note,setNote]=useState(''),[draft,write]=useState(''),[busy,setBusy]=useState(false),[ended,end]=useState(false),[tick,reload]=useState(0)
   const log=useRef<HTMLDivElement>(null),lastTyping=useRef(0),lastMessage=useRef<number|null>(null)
@@ -93,18 +114,18 @@ function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>v
     setBusy(true)
     try{
       await post('/support/'+id+'/'+name,name==='reply'?{body:draft.trim()}:undefined)
-      if(name==='reply'){write('');if(live)chime()}
+      if(name==='reply'){if(live)setRow(r=>r&&!r.viewer_agent?{...r,remaining:null}:r);write('');if(live)chime()}
       if(name==='close'&&live){end(true);setRow(null)}
       else reload(v=>v+1)
     }catch(e){setNote((e as Error).message)}finally{setBusy(false)}
   }
-  if(ended)return <div role="status"><ShieldCheck/><h3>{t('Сесията приключи','Session ended')}</h3><p>{t('Достъпът на агента до дървото е прекратен.','Agent access to this tree has ended.')}</p></div>
+  if(ended)return <div role="status"><ShieldCheck/><h3>{t('Сесията приключи','Session ended')}</h3><p>{t('Достъпът на агента до дървото е прекратен.','Agent access to this tree has ended.')}</p><SessionRating id={id}/></div>
   return <>{note&&<p role="alert">{note}</p>}{!row?!note&&<p>{t('Свързване…','Connecting…')}</p>:<>
-    <header className="desk-context"><small>#{id} · {categories()[row.category]}</small><h2>{row.subject}</h2><p className="desk-status">{state(row)}</p>
+    <header className="desk-context"><small>#{id} · {categories()[row.category]}</small><h2>{row.subject}</h2><p className="desk-status">{state(row)} {live&&row.rating&&<ScoreBadge score={row.rating}/>}</p>{live&&!row.viewer_agent&&<small>{timeoutNotice()}</small>}
     {row.serial&&<p>{row.model} · {row.serial}<br/><span className="desk-warranty">{row.warranty&&row.warranty>=new Date().toISOString().slice(0,10)&&<ShieldCheck size={16}/>} {warrantyText(row.warranty)}{row.warranty&&<WarrantyRemaining date={row.warranty}/>}</span></p>}
     {row.stats&&<section><h3>{t('Показатели за сесията','Session readings')}</h3><div className="desk-readings">{([['power_w',t('Мощност','Power'),'W'],['oxygen_flow_lph','O₂','L/h'],['water_pct',t('Вода','Water'),'%'],['battery_pct',t('Батерия','Battery'),'%']] as const).map(([k,label,unit])=><div key={k}><small>{label}</small><strong>{row.stats![k]??'—'} {unit}</strong></div>)}</div>{row.stats.time&&<small>{new Date(row.stats.time).toLocaleString()}</small>}</section>}
     </header><div className="desk-log" ref={log} role="log">{row.messages.map(m=><article key={m.id} className={m.agent===row.viewer_agent?'own':''}><span className="desk-author">{(m.agent?row.agent_photo:row.customer_photo)&&<img alt="" src={(m.agent?row.agent_photo:row.customer_photo)!}/>}<strong>{m.agent?row.agent:row.customer}</strong></span> <small>{new Date(m.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</small><p>{m.body}</p></article>)}</div>
-    <footer className="desk-composer">{live&&row.typing&&<small className="desk-typing" role="status">{row.viewer_agent?row.customer:row.agent} {t("пише","is typing")} <i/><i/><i/></small>}{!row.closed&&<>{live&&!row.agent?row.viewer_agent?<button className="btn btn-primary" disabled={busy} onClick={()=>action('accept')}>{t('Приеми сесията','Accept session')}</button>:<p role="status">{t('Заявката е изпратена. Остави прозореца отворен, докато агент приеме.','Request sent. Keep this window open until an agent accepts.')}</p>:<form className="modal-form" onSubmit={e=>{e.preventDefault();void action('reply')}}><label>{!live&&t('Съобщение','Message')}<textarea aria-label={t('Съобщение','Message')} placeholder={t('Напиши съобщение…','Write a message…')} onKeyDown={e=>{
+    <footer className="desk-composer">{live&&!row.viewer_agent&&row.remaining!==null&&row.remaining<=60&&<small role="alert" className="idle-warning">{t("Остава под минута. Изпрати съобщение, за да продължиш.","Less than a minute left. Send a message to keep chatting.")}</small>}{live&&row.typing&&<small className="desk-typing" role="status">{row.viewer_agent?row.customer:row.agent} {t("пише","is typing")} <i/><i/><i/></small>}{!row.closed&&<>{live&&!row.agent?row.viewer_agent?<button className="btn btn-primary" disabled={busy} onClick={()=>action('accept')}>{t('Приеми сесията','Accept session')}</button>:<p role="status">{t('Заявката е изпратена. Остави прозореца отворен, докато агент приеме.','Request sent. Keep this window open until an agent accepts.')}</p>:<form className="modal-form" onSubmit={e=>{e.preventDefault();void action('reply')}}><label>{!live&&t('Съобщение','Message')}<textarea aria-label={t('Съобщение','Message')} placeholder={t('Напиши съобщение…','Write a message…')} onKeyDown={e=>{
       if(live&&e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){
         e.preventDefault()
         if(!e.repeat&&!busy&&draft.trim())e.currentTarget.form?.requestSubmit()
@@ -167,3 +188,4 @@ export default function Support({trees}:{trees:Tree[]}){
       <label>{t('Тема','Subject')}<input required name="subject" minLength={2} maxLength={140}/></label><label>{t('Опиши проблема','Describe the issue')}<textarea required name="body" maxLength={4000}/></label>
       <button disabled={busy} className="btn btn-primary">{channel==='chat'?t('Поискай връзка с агент','Request live chat'):t('Изпрати запитване','Submit request')}</button></form>}</section></div></main>
 }
+

@@ -670,6 +670,11 @@ def test_support_queue_privacy_and_agent_replies():
         assert c.post(path+'/close',headers=owner).status_code==200
         assert c.post(path+'/reply',headers=agent,json={'body':'Hello'}).status_code==404
 
+        assert c.put(path+'/rating',headers=other,json={'stars':5}).status_code==404
+        assert c.put(path+'/rating',headers=owner,json={'stars':6}).status_code==422
+        for stars in (4,5):
+            assert c.put(path+'/rating',headers=owner,json={'stars':stars}).status_code==200
+        assert c.get('/api/profile/support-rating',headers=agent).json()=={'average':5,'count':1}
         assert c.get(path,headers=agent).status_code==404
         assert not any(r['id']==case['id'] for r in c.get('/api/support',headers=agent).json()['tickets'])
         assert c.get(path,headers=owner).status_code==404
@@ -697,7 +702,8 @@ def test_support_queue_privacy_and_agent_replies():
         assert c.get(path,headers=agent).json()['typing']
         with SessionLocal() as db:
             lease=db.get(LiveLease,idle)
-            lease.customer_seen=lease.agent_seen=datetime.now(timezone.utc).replace(tzinfo=None)-timedelta(seconds=181)
+            lease.customer_seen=lease.agent_seen=datetime.now(timezone.utc).replace(tzinfo=None)-timedelta(seconds=301)
             db.commit()
         assert c.get(path,headers=agent).status_code==404
         assert c.post(path+'/typing',headers=owner).status_code==404
+
