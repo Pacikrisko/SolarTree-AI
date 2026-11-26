@@ -43,6 +43,17 @@ from .migrations import upgrade
 from .model_media import find_model_media, media_kind
 from .mobile_scanner import scanner_page
 
+def register_warranty(db, tree):
+    if tree.kind=='archived' or db.get(DeviceWarranty,tree.code):
+        return
+    start=tree.created_at
+    try:
+        until=start.replace(year=start.year+10)
+    except ValueError:  # February 29
+        until=start.replace(year=start.year+10,day=28)
+    db.add(DeviceWarranty(serial=tree.code,valid_until=until))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
@@ -50,6 +61,9 @@ async def lifespan(app: FastAPI):
     with SessionLocal() as db:
         seed_demo(db)
         initialize_maintenance(db)
+        for tree in db.scalars(select(Tree)):
+            register_warranty(db,tree)
+        db.commit()
     yield
 
 app = FastAPI(title='Solix', version='0.8.0-deploy', lifespan=lifespan)
@@ -219,6 +233,7 @@ def attach_device(db: Session, reg: DeviceRegistration, user: User, tree: Tree, 
         tree.lat, tree.lng, tree.location = 42.4258, 25.6345, 'Stara Zagora'
     db.add(tree)
     db.flush()
+    register_warranty(db,tree)
     reg.claimed_tree_id=tree.id
     return tree
 

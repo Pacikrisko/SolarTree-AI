@@ -1,7 +1,7 @@
 [Setup]
 AppId=Solix.WebApp
 AppName=Solix
-AppVersion=1.0.0
+AppVersion=1.0.1
 DefaultDirName={localappdata}\Solix
 DefaultGroupName=Solix
 PrivilegesRequired=lowest

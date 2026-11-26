@@ -85,7 +85,7 @@ async function main() {
     await agentPage.context().close()
     for(const width of [390,768,1440]){
       await page.setViewportSize({width,height:900})
-      for(const section of ['overview','trees','detail','insights','assistant','service','settings','profile']){
+      for(const section of ['overview','trees','detail','insights','assistant','service','support','settings','profile']){
         const url = origin+'/#/'+section+'/'+tree.id
         await page.goto(url)
         const histories = new Set()

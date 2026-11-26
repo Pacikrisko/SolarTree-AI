@@ -11,6 +11,15 @@ export function warrantyText(date?:string|null){
   const active=date>=new Date().toISOString().slice(0,10)
   return (active?t('В гаранция до ','Under warranty until '):t('Гаранцията е изтекла на ','Warranty expired on '))+new Date(date+'T12:00:00').toLocaleDateString(getLanguage()==='en'?'en-GB':'bg-BG')
 }
+function WarrantyRemaining({date}:{date:string}){
+  const today=new Date(),end=new Date(date+'T23:59:59')
+  if(end<today)return null
+  let months=(end.getFullYear()-today.getFullYear())*12+end.getMonth()-today.getMonth()
+  if(end.getDate()<today.getDate())months--
+  const years=Math.floor(months/12),rest=months%12
+  const label=[years?years+t(' г.',' yr'):null,rest?rest+t(' мес.',' mo'):null].filter(Boolean).join(' ')
+  return <small>{t('Остават ','Remaining: ')}{label||t('под месец','under one month')}</small>
+}
 const categories=()=>({account:t('Профил и достъп','Account access'),connection:t('Свързване и Wi-Fi','Connectivity and Wi-Fi'),performance:t('Измервания и работа','Readings and performance'),warranty:t('Гаранция и сервиз','Warranty and repair'),other:t('Друго','Other')})
 type Ticket={id:number;subject:string;category:keyof ReturnType<typeof categories>;channel:string;model:string|null;serial:string|null;warranty:string|null;customer:string;agent:string|null;closed:boolean}
 type Desk={agent:boolean;online:boolean;tickets:Ticket[]}
@@ -92,7 +101,7 @@ function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>v
   if(ended)return <div role="status"><ShieldCheck/><h3>{t('Сесията приключи','Session ended')}</h3><p>{t('Достъпът на агента до дървото е прекратен.','Agent access to this tree has ended.')}</p></div>
   return <>{note&&<p role="alert">{note}</p>}{!row?!note&&<p>{t('Свързване…','Connecting…')}</p>:<>
     <header className="desk-context"><small>#{id} · {categories()[row.category]}</small><h2>{row.subject}</h2><p className="desk-status">{state(row)}</p>
-    {row.serial&&<p>{row.model} · {row.serial}<br/>{warrantyText(row.warranty)}</p>}
+    {row.serial&&<p>{row.model} · {row.serial}<br/><span className="desk-warranty">{row.warranty&&row.warranty>=new Date().toISOString().slice(0,10)&&<ShieldCheck size={16}/>} {warrantyText(row.warranty)}{row.warranty&&<WarrantyRemaining date={row.warranty}/>}</span></p>}
     {row.stats&&<section><h3>{t('Показатели за сесията','Session readings')}</h3><div className="desk-readings">{([['power_w',t('Мощност','Power'),'W'],['oxygen_flow_lph','O₂','L/h'],['water_pct',t('Вода','Water'),'%'],['battery_pct',t('Батерия','Battery'),'%']] as const).map(([k,label,unit])=><div key={k}><small>{label}</small><strong>{row.stats![k]??'—'} {unit}</strong></div>)}</div>{row.stats.time&&<small>{new Date(row.stats.time).toLocaleString()}</small>}</section>}
     </header><div className="desk-log" ref={log} role="log">{row.messages.map(m=><article key={m.id} className={m.agent===row.viewer_agent?'own':''}><span className="desk-author">{(m.agent?row.agent_photo:row.customer_photo)&&<img alt="" src={(m.agent?row.agent_photo:row.customer_photo)!}/>}<strong>{m.agent?row.agent:row.customer}</strong></span> <small>{new Date(m.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</small><p>{m.body}</p></article>)}</div>
     <footer className="desk-composer">{live&&row.typing&&<small className="desk-typing" role="status">{row.viewer_agent?row.customer:row.agent} {t("пише","is typing")} <i/><i/><i/></small>}{!row.closed&&<>{live&&!row.agent?row.viewer_agent?<button className="btn btn-primary" disabled={busy} onClick={()=>action('accept')}>{t('Приеми сесията','Accept session')}</button>:<p role="status">{t('Заявката е изпратена. Остави прозореца отворен, докато агент приеме.','Request sent. Keep this window open until an agent accepts.')}</p>:<form className="modal-form" onSubmit={e=>{e.preventDefault();void action('reply')}}><label>{!live&&t('Съобщение','Message')}<textarea aria-label={t('Съобщение','Message')} placeholder={t('Напиши съобщение…','Write a message…')} onKeyDown={e=>{

@@ -256,3 +256,21 @@
 .solix-brand:hover .solix-symbol{transform:translateY(-2px);box-shadow:0 6px 18px #83d96250}
 .solix-brand:focus-visible{outline:2px solid var(--app-accent);outline-offset:4px;border-radius:10px}
 @media(prefers-reduced-motion:reduce){.solix-brand .solix-symbol{transition:none}.solix-brand:hover .solix-symbol{transform:none}}
+
+.clear-notices{margin-inline-start:auto;border:0;background:transparent;color:var(--app-text);text-decoration:underline;text-underline-offset:3px;padding:6px 10px;cursor:pointer}
+.support-columns aside.panel{display:flex;flex-wrap:wrap;align-content:flex-start;gap:8px}
+.support-columns aside.panel h3{flex-basis:100%;margin:0 0 6px}
+.support-columns aside.panel .support-case{margin:0}
+.desk-warranty{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;border-radius:12px;padding:4px 8px;background:var(--app-surface);color:var(--app-text)}
+.desk-warranty svg{color:var(--app-accent)}
+.assistant-page .chat-input-box:focus-within{outline:2px solid var(--app-accent);outline-offset:1px}
+.assistant-page .chat-input-box textarea:focus,.assistant-page .chat-input-box textarea:focus-visible{outline:none!important;box-shadow:none!important;animation:none!important;transition:none!important}
+.assistant-page .chat-input-box textarea{flex:1;min-width:0;caret-color:var(--app-text)}
+@media(max-width:700px){
+ .support-columns aside.panel>.btn{white-space:normal;max-width:100%}
+ .assistant-page .thread-tools,.detail-actions-right,.desk-channels{flex-wrap:wrap;gap:8px}
+ .assistant-page .thread-tools select{max-width:100%;min-width:0}
+ .notification-pop{max-width:calc(100vw - 20px);max-height:75dvh;overflow:auto}
+ .popover-head{flex-wrap:wrap;gap:4px}
+ .desk-context,.desk-log article,.support-case{overflow-wrap:anywhere}
+}
