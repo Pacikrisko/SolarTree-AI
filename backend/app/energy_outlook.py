@@ -6,7 +6,7 @@ from sqlalchemy import Integer, cast, extract, func, select
 
 from .catalog import get_model
 from .models import Reading
-from .urban_history import is_urban_simulator, URBAN_DAYLIGHT_HOURS
+from .urban_history import is_urban_simulator, URBAN_DAYLIGHT_HOURS, winter_solar_factor
 
 
 def recent_daily_energy(db, tree_id, source, midnight):
@@ -27,9 +27,16 @@ def energy_outlook(db, tree, source, now):
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
     rating = get_model(tree.model_code, tree.code)['rated_solar_w']
     details = {}
+    totals = {}
     if is_urban_simulator(tree):
         # Integral of the simulator's sine curve from sunrise to sunset.
         daily = rating / 1000 * 2 * URBAN_DAYLIGHT_HOURS / math.pi
+        nominal = daily
+        accumulated = 0.
+        for n in range(1, 15):
+            accumulated += nominal * winter_solar_factor(midnight + timedelta(days=n))
+            totals[str(n)] = round(accumulated, 4)
+        daily = totals['1']
         basis = 'repeating Urban simulation'
     else:
         days = recent_daily_energy(db, tree.id, source, midnight) if source else []
@@ -47,4 +54,4 @@ def energy_outlook(db, tree, source, now):
     return {'basis': basis, **details, 'weather_adjusted': False,
             'first_full_day_utc': (midnight + timedelta(days=1)).date().isoformat(),
             'kwh_each_day': round(daily, 4),
-            'total_kwh_by_number_of_days': {str(n): round(n*daily, 4) for n in range(1, 15)}}
+            'total_kwh_by_number_of_days': totals or {str(n): round(n*daily, 4) for n in range(1, 15)}}

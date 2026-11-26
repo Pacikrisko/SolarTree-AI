@@ -1,7 +1,7 @@
 """Synthetic readings for the Urban demonstration and optional local demo fixtures."""
 import math
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from .models import Tree, Reading
 from .catalog import get_model
@@ -12,6 +12,10 @@ from .resource_math import (
 
 
 URBAN_DAYLIGHT_HOURS = 12
+
+
+def winter_solar_factor(day):
+    return .65 if day.month in (11, 12, 1, 2) else 1.
 
 
 def is_urban_simulator(tree: Tree) -> bool:
@@ -27,7 +31,7 @@ def urban_sample(tree: Tree, when: datetime):
     phase = math.pi * min(hour, 12) / 12
     sunlight = math.sin(phase) if hour < 12 else 0.0
     cold = dawn.month in (11, 12, 1, 2)
-    solar_peak = model['rated_solar_w'] / 1000 * (.65 if cold else 1)
+    solar_peak = model['rated_solar_w'] / 1000 * winter_solar_factor(dawn)
     solar_w = 1000 * solar_peak * sunlight
     rated = model['electrolyzer_kw']
     yield_l = model['oxygen_nominal_lph'] / rated
@@ -58,8 +62,6 @@ def urban_sample(tree: Tree, when: datetime):
     battery_kwh = .15 * battery_capacity + swing * (1 - daylight_fraction)
     battery_kwh += min(swing, max(0, fuel_kw * night_hours - night_used))
     # Count prior operating days by season so the water level carries over at dawn.
-    from datetime import date
-    from calendar import isleap
     before_year = dawn.year - 1
     leap_days = before_year//4 - before_year//100 + before_year//400
     cold_days = 120 * before_year + leap_days
