@@ -41,4 +41,4 @@ def test_complete_days_are_weighted_by_time_and_scoped_to_tree_and_source():
         stale = energy_outlook(db, tree, 'device', now+timedelta(days=10))
         assert 'scenario' in stale['basis']
         assert stale['assumed_equivalent_full_power_hours_per_day'] == 4
-        assert stale['total_kwh_by_number_of_days']['5'] == .32
+        assert stale['total_kwh_by_number_of_days']['5'] == 25 * 4 * 5 / 1000
