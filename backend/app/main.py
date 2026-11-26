@@ -35,6 +35,7 @@ from .ml import predict_power, detect_anomaly
 from .maintenance import initialize_maintenance, maintenance_for, COMPONENTS
 from .energy_outlook import energy_outlook
 from .assistant import answer, account_report, assistant_provider, AssistantAPIError
+from .monthly_archive import archive_months, monthly_archive
 from .catalog import get_model, MODELS
 from .resource_math import resource_estimate
 from .urban_history import add_demo_urban_history, is_urban_simulator, urban_readings, urban_sample
@@ -537,6 +538,15 @@ def remove_tree(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_
     db.commit()
     return {'ok':True}
 
+@app.get('/api/trees/{tree_id}/monthly-archive')
+def tree_archive(tree_id:int,month:str|None=None,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    tree=find_tree(db,tree_id,user)
+    months=archive_months()
+    if month is not None and month not in months:
+        raise HTTPException(422,'Избери един от последните 12 завършени месеца.')
+    return {**monthly_archive(tree,month or months[0]),'months':months}
+
+
 @app.get('/api/trees/{tree_id}')
 def tree_detail(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     return to_tree(db,find_tree(db,tree_id,user))
@@ -813,6 +823,11 @@ def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
             points=oxygen.pop('points')
             device['oxygen_history']={**oxygen,'from':points[0]['time'] if points else None,
                                        'to':points[-1]['time'] if points else None}
+            device['monthly_archive']=[]
+            for month in archive_months():
+                entry=monthly_archive(tree,month)
+                entry.pop('days')
+                device['monthly_archive'].append(entry)
             device['forecast']=tree_forecast(tree.id,db,user)
             device['daily_energy_outlook']=energy_outlook(
                 db, tree, device['latest']['source'] if device['latest'] else None, datetime.now(timezone.utc))
