@@ -118,7 +118,7 @@ export default function Support({trees}:{trees:Tree[]}){
   async function submit(e:FormEvent<HTMLFormElement>){
     e.preventDefault();if(busy)return
     const form=e.currentTarget,data=Object.fromEntries(new FormData(form)),win=channel==='chat'?popup('about:blank'):null
-    setBusy(true);setError('')
+    setBusy(true);setError('');setBlocked(null)
     try{const r=await request<{id:number}>('/support',{method:'POST',body:JSON.stringify({...data,channel,tree_id:treeId?Number(treeId):null})})
       if(channel==='chat'){if(win)win.location.replace(chatUrl(r.id));else setBlocked(r.id)}else select(r.id)
       form.reset();setTree('');refresh(v=>v+1)
@@ -131,15 +131,20 @@ export default function Support({trees}:{trees:Tree[]}){
     void request<typeof archive>('/support/archive').then(rows=>{if(active)setArchive(rows)}).catch(e=>{if(active)setError(e.message)})
     return ()=>{active=false}
   },[showArchive,desk])
+  const [formVersion,resetForm]=useState(0)
+  function startNew(kind:string){
+    select(null);choose(kind);setTree('');setBlocked(null);setError('');resetForm(v=>v+1)
+  }
+  const inbox=desk?.tickets.filter(ticket=>desk.agent||ticket.channel!=='chat')??[]
   const tree=trees.find(r=>String(r.id)===treeId)
   return <main className="page-body support-desk"><header className="desk-heading"><Headphones/><div><h2>{desk?.agent?t('Агентска конзола','Agent workspace'):t('Център за поддръжка','Support center')}</h2>{desk&&<small>{desk.agent?t('Получаваш заявки, докато конзолата е отворена.','You receive requests while this desk is open.'):desk.online?t('Има агент онлайн','Agent online'):t('В момента няма агент онлайн','No agents currently online')}</small>}</div></header>
     {error&&<p role="alert">{error}</p>}{blocked&&<a className="btn btn-primary" href={chatUrl(blocked)} target="_blank" rel="noreferrer">{t('Отвори прозореца за чат','Open chat window')}</a>}
     <div className="support-columns"><aside className="panel"><h3>{desk?.agent?t('Входящи случаи','Incoming cases'):t('Моите запитвания','My requests')}</h3>
-      {desk?.agent&&<button className="btn btn-outline" aria-pressed={showArchive} onClick={()=>{setShowArchive(!showArchive);select(null)}}>{showArchive?t("Към входящите","Back to inbox"):t("История на живите сесии","Live session history")}</button>}{!desk?.agent&&<button className="btn btn-primary" onClick={()=>select(null)}>{t('Ново запитване','New request')}</button>}
-      {desk?.tickets.map(r=><button key={r.id} className="btn btn-outline support-case" onClick={()=>{setShowArchive(false);if(r.channel==='chat'&&!r.closed){if(!popup(chatUrl(r.id)))setBlocked(r.id)}else select(r.id)}}>#{r.id} · {r.subject}<small>{r.channel==='chat'?t('Чат','Chat'):t('Запитване','Ticket')} · {state(r)}</small></button>)}
-      {desk&&!desk.tickets.length&&<p>{t('Няма запитвания.','No requests yet.')}</p>}</aside>
-    <section className="panel">{!desk?<p>{t('Зареждане…','Loading…')}</p>:showArchive?<><h3>{t('История на живите сесии','Live session history')}</h3>{!archive.length&&<p>{t('Няма приключени сесии.','No completed sessions.')}</p>}{archive.map(r=><p key={r.id}>#{r.id} · {categories()[r.category]} · {r.accepted?new Date(r.accepted).toLocaleString():t('Приключена сесия','Closed session')}</p>)}</>:id?<Conversation key={id} id={id} live={false} onDelete={()=>{select(null);refresh(v=>v+1)}}/>:desk.agent?<p>{t('Избери входяща заявка, за да видиш описанието и да приемеш разговора.','Select a request to read the description and accept the chat.')}</p>:<form className="modal-form" onSubmit={submit}>
-      <div className="desk-channels">{(['ticket','chat'] as const).map(k=><button key={k} type="button" aria-pressed={channel===k} onClick={()=>choose(k)}>{k==='chat'?<MessageCircle/>:<Mail/>}{k==='chat'?t('Чат с агент','Live chat'):t('Писмено запитване','Written request')}</button>)}</div>
+      {desk?.agent&&<button className="btn btn-outline" aria-pressed={showArchive} onClick={()=>{setShowArchive(!showArchive);select(null)}}>{showArchive?t("Към входящите","Back to inbox"):t("История на живите сесии","Live session history")}</button>}{!desk?.agent&&<button className="btn btn-primary" onClick={()=>startNew('ticket')}>{t('Ново запитване','New request')}</button>}{desk&&!desk.agent&&<button className="btn btn-outline" onClick={()=>startNew('chat')}>{t('Нов чат с агент','New agent chat')}</button>}
+      {inbox.map(r=><button key={r.id} className="btn btn-outline support-case" onClick={()=>{setShowArchive(false);if(r.channel==='chat'&&!r.closed){if(!popup(chatUrl(r.id)))setBlocked(r.id)}else select(r.id)}}>#{r.id} · {r.subject}<small>{r.channel==='chat'?t('Чат','Chat'):t('Запитване','Ticket')} · {state(r)}</small></button>)}
+      {desk&&!inbox.length&&<p>{t('Няма запитвания.','No requests yet.')}</p>}</aside>
+    <section className="panel">{!desk?<p>{t('Зареждане…','Loading…')}</p>:showArchive?<><h3>{t('История на живите сесии','Live session history')}</h3>{!archive.length&&<p>{t('Няма приключени сесии.','No completed sessions.')}</p>}{archive.map(r=><p key={r.id}>#{r.id} · {categories()[r.category]} · {r.accepted?new Date(r.accepted).toLocaleString():t('Приключена сесия','Closed session')}</p>)}</>:id?<Conversation key={id} id={id} live={false} onDelete={()=>{select(null);refresh(v=>v+1)}}/>:desk.agent?<p>{t('Избери входяща заявка, за да видиш описанието и да приемеш разговора.','Select a request to read the description and accept the chat.')}</p>:<form key={formVersion} className="modal-form" onSubmit={submit}>
+      <div className="desk-channels">{(['ticket','chat'] as const).map(k=><button key={k} type="button" aria-pressed={channel===k} onClick={()=>startNew(k)}>{k==='chat'?<MessageCircle/>:<Mail/>}{k==='chat'?t('Чат с агент','Live chat'):t('Писмено запитване','Written request')}</button>)}</div>
       {channel==='chat'&&!desk.online&&<p>{t('Можеш да изчакаш агент тук или да оставиш писмено запитване за по-късно.','Wait for an agent or leave a written request for later.')}</p>}
       {channel==='chat'&&<p>{t('Чатът се отваря в отделен прозорец. Агентът вижда показателите на избраното дърво само през активната сесия.','Chat opens in a separate window. The agent can view the selected tree’s readings during the active session.')}</p>}
       <label>{t('За кое устройство е запитването?','Which device do you need help with?')}<select value={treeId} onChange={e=>setTree(e.target.value)}><option value="">{t('Общо запитване','General inquiry')}</option>{trees.map(r=><option key={r.id} value={r.id}>{r.name} · {r.code}</option>)}</select></label>
