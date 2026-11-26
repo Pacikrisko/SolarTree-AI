@@ -1,0 +1,56 @@
+name: Solix installers
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['packaging/**', '.github/workflows/packages.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build installer
+        shell: pwsh
+        run: |
+          python -m pip install Pillow
+          python -c "from PIL import Image; Image.open('frontend/public/icon-512.png').save('packaging/windows/Solix.ico')"
+          & "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:winexe /reference:System.Windows.Forms.dll /win32icon:packaging/windows/Solix.ico /out:packaging/windows/Solix.exe packaging/windows/Launcher.cs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { choco install innosetup --yes }
+          & $iscc packaging/windows/Solix.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Solix-Windows
+          path: packaging/windows/Solix-Setup.exe
+          if-no-files-found: error
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Build APK
+        run: |
+          mkdir -p packaging/android/src/main/res/drawable
+          cp frontend/public/icon-192.png packaging/android/src/main/res/drawable/solix.png
+          gradle -p packaging/android assembleDebug
+          cp packaging/android/build/outputs/apk/debug/*-debug.apk Solix.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Solix-Android
+          path: Solix.apk
+          if-no-files-found: error
