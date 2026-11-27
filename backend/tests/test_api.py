@@ -664,10 +664,16 @@ def test_support_queue_privacy_and_agent_replies():
         assert active['customer_photo']==photo.json()['image']
         assert active['serial']==tree['code'] and 'power_w' in active['stats']
         assert c.get('/api/trees/'+str(tree['id']),headers=agent).status_code==404
-        assert c.post(path+'/reply',headers=agent,json={'body':'How can I help?'}).status_code==200
+        assert c.post(path+'/reply',headers=agent,json={'body':'How can I help?','file':{'name':'notes.txt','content':'dGVzdA=='}}).status_code==200
         thread=c.get(path,headers=owner).json()
+        attachment=thread['messages'][-1]
+        assert attachment['file']=='notes.txt'
+        file_path=f"{path}/files/{attachment['id']}"
+        assert c.get(file_path,headers=owner).content==b'test'
+        assert c.get(file_path,headers=other).status_code==404
         assert len(thread['messages'])==2 and thread['agent']=='Support 2'
         assert c.post(path+'/close',headers=owner).status_code==200
+        assert c.get(file_path,headers=agent).status_code==404
         assert c.post(path+'/reply',headers=agent,json={'body':'Hello'}).status_code==404
 
         assert c.put(path+'/rating',headers=other,json={'stars':5}).status_code==404
