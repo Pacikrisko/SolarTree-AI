@@ -21,11 +21,11 @@ input[type=file]{display:none}#state{min-height:44px;padding:12px 14px;backgroun
 <button id="start">@@open@@</button>
 <label class="file">@@photo@@<input type="file" id="photo" accept="image/*"></label><canvas id="canvas"></canvas>
 <p class="tip">@@tip@@</p></main>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js" defer></script>
+<script src="/api/scanner/jsqr-1.4.0.js"></script>
 <script>
 const session=location.pathname.split('/').pop();
 const video=document.getElementById('camera'), state=document.getElementById('state'), start=document.getElementById('start'), fallback=document.getElementById('fallback'), canvas=document.getElementById('canvas');
-const ctx=canvas.getContext('2d',{willReadFrequently:true});let stream=null,active=false,working=false,detector=null;
+const ctx=canvas.getContext('2d',{willReadFrequently:true});let stream=null,active=false,working=false;
 function status(s){state.textContent=s}
 function stop(){active=false;if(stream){stream.getTracks().forEach(x=>x.stop());stream=null}video.srcObject=null}
 function decode(){if(!video.videoWidth||!video.videoHeight)return null;canvas.width=video.videoWidth;canvas.height=video.videoHeight;ctx.drawImage(video,0,0);return decodeCanvas()}
@@ -36,14 +36,28 @@ const json=await res.json();if(!res.ok)throw new Error(json.detail||'@@error@@')
 stop();status('✓ '+json.name+'@@finished@@');start.style.display='none';document.querySelector('.file').style.display='none';
 }catch(e){status(e.message||'@@failed@@');working=false;setTimeout(()=>{if(active)status('@@retry@@')},2500)}}
 async function scan(){if(!active||working)return;
-try{if(!window.jsQR && 'BarcodeDetector' in window){detector ??= new BarcodeDetector({formats:['qr_code']});const items=await detector.detect(video);if(items.length){await submit(items[0].rawValue);return}}
-else {const found=decode();if(found){await submit(found);return}}}catch(e){}
+try {
+  const found=decode();
+  if(found){await submit(found);if(!active)return}
+}catch(e){status('@@unreadable@@')}
 setTimeout(scan,180)}
 start.onclick=async()=>{try{
 if(!navigator.mediaDevices?.getUserMedia){status('@@https@@');return}
-stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});video.srcObject=stream;await video.play();fallback.style.display='none';active=true;start.textContent='@@on@@';status('@@aim@@');scan()
-}catch(e){status('@@denied@@') }};
-document.getElementById('photo').onchange=async(e)=>{const f=e.target.files[0];if(!f)return;try{const bmp=await createImageBitmap(f);canvas.width=bmp.width;canvas.height=bmp.height;ctx.drawImage(bmp,0,0);const raw=decodeCanvas();bmp.close();if(!raw){status('@@missing@@');return}await submit(raw)}catch(e){status('@@unreadable@@') }};
+start.disabled=true;stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});video.srcObject=stream;await video.play();fallback.style.display='none';active=true;start.textContent='@@on@@';status('@@aim@@');scan()
+}catch(e){stop();start.disabled=false;status('@@denied@@') }};
+document.getElementById('photo').onchange=async(e)=>{const f=e.target.files[0];if(!f)return;
+const url=URL.createObjectURL(f);
+try{
+  const image=new Image();image.src=url;await image.decode();
+  const scale=Math.min(1,1600/Math.max(image.naturalWidth,image.naturalHeight));
+  canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
+  canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+  ctx.drawImage(image,0,0,canvas.width,canvas.height);
+  const raw=decodeCanvas();if(!raw){status('@@missing@@');return}await submit(raw)
+}catch(e){status('@@unreadable@@')}
+finally{URL.revokeObjectURL(url);e.target.value=''}
+};
+window.addEventListener('pagehide',stop);
 </script></body></html>'''
 
 STRINGS = {
