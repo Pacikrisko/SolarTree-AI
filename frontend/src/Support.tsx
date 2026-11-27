@@ -32,13 +32,13 @@ const post=(path:string,data?:unknown)=>request(path,{method:'POST',body:data?JS
 const chatUrl=(id:number)=>location.pathname+'?support-session='+id
 function popup(url:string){return window.open(url,'_blank','popup,width=560,height=740,resizable=yes,scrollbars=yes')}
 const timeoutNotice=()=>t('Когато е твой ред, имаш 5 минути да изпратиш съобщение. Докато чакаш агента, времето не тече.','When it’s your turn, send a message within 5 minutes. There is no time limit while you wait for the agent.')
-function ScoreBadge({score}:{score:Score}){
-  return <small className="agent-score">★ {score.average===null?t('Без оценки','No ratings'):score.average.toLocaleString(getLanguage()==='en'?'en-GB':'bg-BG',{minimumFractionDigits:1})+' / 5 ('+score.count+')'}</small>
+function ScoreBadge({score,showCount=false}:{score:Score;showCount?:boolean}){
+  return <small className="agent-score">★ {score.average===null?t('Без оценки','No ratings'):score.average.toLocaleString(getLanguage()==='en'?'en-GB':'bg-BG',{minimumFractionDigits:1})+(showCount?' ('+score.count+')':'')}</small>
 }
 export function ProfileRating(){
   const [score,setScore]=useState<Score|null>(null)
   useEffect(()=>{let active=true;request<Score|null>('/profile/support-rating').then(s=>{if(active)setScore(s)}).catch(()=>{});return ()=>{active=false}},[])
-  return score&&<p>{t('Агентски рейтинг','Agent rating')} <ScoreBadge score={score}/></p>
+  return score&&<p>{t('Агентски рейтинг','Agent rating')} <ScoreBadge score={score} showCount/></p>
 }
 function SessionRating({id}:{id:number}){
   const [available,show]=useState(false),[stars,setStars]=useState<number|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('')
