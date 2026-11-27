@@ -1,3 +1,4 @@
+import {AttachmentCard, InquiryAttachment} from './SupportAttachment'
 import {useEffect,useRef,useState,type FormEvent} from 'react'
 import {Headphones, Mail, MessageCircle, Send, ShieldCheck} from 'lucide-react'
 import {request} from './api'
@@ -61,12 +62,6 @@ async function upload(file?:File|null){
     reader.readAsDataURL(file)
   })
   return {name:file.name,content}
-}
-async function download(id:number,message:number,name:string){
-  const response=await fetch('/api/support/'+id+'/files/'+message,{headers:{Authorization:'Bearer '+localStorage.getItem('solartree_token')}})
-  if(!response.ok)throw Error(t('Файлът е недостъпен.','File unavailable.'))
-  const url=URL.createObjectURL(await response.blob()),link=document.createElement('a')
-  link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)
 }
 function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>void}){
   const [row,setRow]=useState<Thread|null>(null),[note,setNote]=useState(''),[draft,write]=useState(''),[busy,setBusy]=useState(false),[ended,end]=useState(false),[tick,reload]=useState(0)
@@ -143,7 +138,7 @@ function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>v
     <header className="desk-context"><small>#{id} · {categories()[row.category]}</small><h2>{row.subject}</h2><p className="desk-status">{state(row)} {live&&row.rating&&<ScoreBadge score={row.rating}/>}</p>{live&&!row.viewer_agent&&<small>{timeoutNotice()}</small>}
     {row.serial&&<p>{row.model} · {row.serial}<br/><span className="desk-warranty">{row.warranty&&row.warranty>=new Date().toISOString().slice(0,10)&&<ShieldCheck size={16}/>} {warrantyText(row.warranty)}{row.warranty&&<WarrantyRemaining date={row.warranty}/>}</span></p>}
     {row.stats&&<section><h3>{t('Показатели за сесията','Session readings')}</h3><div className="desk-readings">{([['power_w',t('Мощност','Power'),'W'],['oxygen_flow_lph','O₂','L/h'],['water_pct',t('Вода','Water'),'%'],['battery_pct',t('Батерия','Battery'),'%']] as const).map(([k,label,unit])=><div key={k}><small>{label}</small><strong>{row.stats![k]??'—'} {unit}</strong></div>)}</div>{row.stats.time&&<small>{new Date(row.stats.time).toLocaleString()}</small>}</section>}
-    </header><div className="desk-log" ref={log} role="log">{row.messages.map(m=><article key={m.id} className={m.agent===row.viewer_agent?'own':''}><span className="desk-author">{(m.agent?row.agent_photo:row.customer_photo)&&<img alt="" src={(m.agent?row.agent_photo:row.customer_photo)!}/>}<strong>{m.agent?row.agent:row.customer}</strong></span> <small>{new Date(m.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</small><p>{m.body}</p>{m.file&&<button onClick={()=>download(id,m.id,m.file!).catch(e=>setNote(e.message))}>📎 {m.file}</button>}</article>)}</div>
+    </header><div className="desk-log" ref={log} role="log">{row.messages.map(m=><article key={m.id} className={m.agent===row.viewer_agent?'own':''}><span className="desk-author">{(m.agent?row.agent_photo:row.customer_photo)&&<img alt="" src={(m.agent?row.agent_photo:row.customer_photo)!}/>}<strong>{m.agent?row.agent:row.customer}</strong></span> <small>{new Date(m.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</small>{m.body!==m.file&&<p>{m.body}</p>}{m.file&&<AttachmentCard ticket={id} message={m.id} name={m.file}/>}</article>)}</div>
     <footer className="desk-composer">{live&&!row.viewer_agent&&row.remaining!==null&&row.remaining<=60&&<small role="alert" className="idle-warning">{t("Остава под минута. Изпрати съобщение, за да продължиш.","Less than a minute left. Send a message to keep chatting.")}</small>}{live&&row.typing&&<small className="desk-typing" role="status">{row.viewer_agent?row.customer:row.agent} {t("пише","is typing")} <i/><i/><i/></small>}{!row.closed&&<>{live&&!row.agent?row.viewer_agent?<button className="btn btn-primary" disabled={busy} onClick={()=>action('accept')}>{t('Приеми сесията','Accept session')}</button>:<p role="status">{t('Заявката е изпратена. Остави прозореца отворен, докато агент приеме.','Request sent. Keep this window open until an agent accepts.')}</p>:<form className="modal-form" onSubmit={e=>{e.preventDefault();void action('reply')}}><label>{!live&&t('Съобщение','Message')}<textarea aria-label={t('Съобщение','Message')} placeholder={t('Напиши съобщение…','Write a message…')} onKeyDown={e=>{
       if(live&&e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){
         e.preventDefault()
@@ -204,7 +199,7 @@ export default function Support({trees}:{trees:Tree[]}){
       <label>{t('За кое устройство е запитването?','Which device do you need help with?')}<select value={treeId} onChange={e=>setTree(e.target.value)}><option value="">{t('Общо запитване','General inquiry')}</option>{trees.map(r=><option key={r.id} value={r.id}>{r.name} · {r.code}</option>)}</select></label>
       {tree&&<small className="warranty-label">{warrantyText(tree.warranty_until)}</small>}
       <label>{t('Категория','Category')}<select name="category">{Object.entries(categories()).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
-      <label>{t('Тема','Subject')}<input required name="subject" minLength={2} maxLength={140}/></label><label>{t('Опиши проблема','Describe the issue')}<textarea required name="body" maxLength={4000}/></label><label>{t("Прикачи файл или снимка (до 2 MB)","Attach a file or photo (up to 2 MB)")}<input name="file" type="file"/></label>
+      <label>{t('Тема','Subject')}<input required name="subject" minLength={2} maxLength={140}/></label><label>{t('Опиши проблема','Describe the issue')}<textarea required name="body" maxLength={4000}/></label><InquiryAttachment/>
       <button disabled={busy} className="btn btn-primary">{channel==='chat'?t('Поискай връзка с агент','Request live chat'):t('Изпрати запитване','Submit request')}</button></form>}</section></div></main>
 }
 
