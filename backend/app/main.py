@@ -748,7 +748,7 @@ def alerts(db:Session=Depends(get_db),user:User=Depends(logged_in)):
             t=db.get(Tree,a.tree_id)
             out.append({'id':a.id,'tree_id':a.tree_id,'tree_name':t.name,'message':a.message,
                         'severity':a.severity,'acknowledged':a.acknowledged,
-                        'time':a.created_at.isoformat()+'Z','can_ack':True})
+                        'time':a.created_at.isoformat()+'Z','can_ack':t.owner_id==user.id})
     return out
 @app.post('/api/alerts/{alert_id}/ack')
 def acknowledge(alert_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
