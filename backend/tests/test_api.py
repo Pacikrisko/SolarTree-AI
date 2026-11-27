@@ -672,6 +672,13 @@ def test_support_queue_privacy_and_agent_replies():
         assert c.get(file_path,headers=owner).content==b'test'
         assert c.get(file_path,headers=other).status_code==404
         assert len(thread['messages'])==2 and thread['agent']=='Support 2'
+        batch=[{'name':'first.pdf','content':'YQ=='},{'name':'second.png','content':'Yg=='}]
+        assert c.post(path+'/reply',headers=owner,json={'body':'Files','files':batch}).status_code==200
+        before=c.get(path,headers=agent).json()['messages']
+        assert [m['file'] for m in before[-2:]]==['first.pdf','second.png']
+        batch[0]['content']=base64.b64encode(bytes(5*1024*1024)).decode()
+        assert c.post(path+'/reply',headers=owner,json={'body':'Oversize','files':batch}).status_code==413
+        assert len(c.get(path,headers=owner).json()['messages'])==len(before)
         assert c.post(path+'/close',headers=owner).status_code==200
         assert c.get(file_path,headers=agent).status_code==404
         assert c.post(path+'/reply',headers=agent,json={'body':'Hello'}).status_code==404
@@ -712,4 +719,5 @@ def test_support_queue_privacy_and_agent_replies():
             db.commit()
         assert c.get(path,headers=agent).status_code==404
         assert c.post(path+'/typing',headers=owner).status_code==404
+
 

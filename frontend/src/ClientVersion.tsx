@@ -34,5 +34,6 @@ export default function ClientVersion({children}:{children:ReactNode}){
   },[client])
   if(!update)return <>{children}</>
   const en=getLanguage()==='en'
-  return <main className="signin"><section className="panel" style={{margin:'auto',maxWidth:'28rem',padding:'2rem'}}><h1>{en?'Update Solix':'Актуализирай Solix'}</h1><p>{en?'Install the current version, then reopen Solix to continue.':'Инсталирай актуалната версия и отвори Solix отново, за да продължиш.'}</p><a className="btn btn-primary" href={update}>{en?'Update':'Актуализирай'}</a></section></main>
+  return <main className="signin"><section className="panel" style={{margin:'auto',maxWidth:'28rem',padding:'clamp(1.5rem,5vw,2.5rem)',display:'grid',gap:'1.25rem',justifyItems:'start',lineHeight:1.55}}><h1>{en?'Update Solix':'Актуализирай Solix'}</h1><p>{en?'Install the current version, then reopen Solix to continue.':'Инсталирай актуалната версия и отвори Solix отново, за да продължиш.'}</p><a className="btn btn-primary" href={update}>{en?'Update':'Актуализирай'}</a></section></main>
 }
+

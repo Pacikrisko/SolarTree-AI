@@ -52,9 +52,11 @@ function SessionRating({id}:{id:number}){
   if(!available)return null
   return <section className="session-review"><h3>{t('Как оценяваш разговора?','How was your conversation?')}</h3><div className="chat-stars">{[1,2,3,4,5].map(n=><button key={n} type="button" data-lit={n<=(preview||stars||0)} onPointerEnter={()=>setPreview(n)} onPointerLeave={()=>setPreview(0)} onFocus={()=>setPreview(n)} onBlur={()=>setPreview(0)} disabled={busy} aria-pressed={stars===n} aria-label={n+' / 5'} onClick={()=>submit(n)}>★</button>)}</div><small role="status">{error||(stars?t('Благодарим за оценката!','Thank you for your rating!'):'')}</small></section>
 }
-async function upload(file?:File|null){
-  if(!file||!file.size)return undefined
-  if(file.size>2097152)throw Error(t('Избери файл до 2 MB.','Choose a file up to 2 MB.'))
+async function uploads(selected:FileList|null|undefined){
+  const files=Array.from(selected??[])
+  if(files.reduce((sum,file)=>sum+file.size,0)>5*1024*1024)
+    throw Error(t('Файловете трябва да са до 5 MB общо.','Choose files up to 5 MB in total.'))
+  return Promise.all(files.map(async file=>{
   const content=await new Promise<string>((resolve,reject)=>{
     const reader=new FileReader()
     reader.onload=()=>resolve(String(reader.result).split(',')[1])
@@ -62,6 +64,7 @@ async function upload(file?:File|null){
     reader.readAsDataURL(file)
   })
   return {name:file.name,content}
+  }))
 }
 function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>void}){
   const [row,setRow]=useState<Thread|null>(null),[note,setNote]=useState(''),[draft,write]=useState(''),[busy,setBusy]=useState(false),[ended,end]=useState(false),[tick,reload]=useState(0)
@@ -127,13 +130,13 @@ function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>v
     if(busy)return
     setBusy(true)
     try{
-      await post('/support/'+id+'/'+name,name==='reply'?{body:draft.trim()||attachment.current?.files?.[0]?.name,file:await upload(attachment.current?.files?.[0])}:undefined)
+      await post('/support/'+id+'/'+name,name==='reply'?{body:draft.trim()||attachment.current?.files?.[0]?.name,files:await uploads(attachment.current?.files)}:undefined)
       if(name==='reply'){if(attachment.current)attachment.current.value='';setAttached(false);if(live)setRow(r=>r&&!r.viewer_agent?{...r,remaining:null}:r);write('');if(live)chime()}
       if(name==='close'&&live){end(true);setRow(null)}
       else reload(v=>v+1)
     }catch(e){setNote((e as Error).message)}finally{setBusy(false)}
   }
-  if(ended)return <div role="status"><ShieldCheck/><h3>{t('Сесията приключи','Session ended')}</h3><p>{t('Достъпът на агента до дървото е прекратен.','Agent access to this tree has ended.')}</p><SessionRating id={id}/></div>
+  if(ended)return <div className="session-finished" role="status"><ShieldCheck/><h3>{t('Сесията приключи','Session ended')}</h3><p>{t('Достъпът на агента до дървото е прекратен.','Agent access to this tree has ended.')}</p><SessionRating id={id}/></div>
   return <>{note&&<p role="alert">{note}</p>}{!row?!note&&<p>{t('Свързване…','Connecting…')}</p>:<>
     <header className="desk-context"><small>#{id} · {categories()[row.category]}</small><h2>{row.subject}</h2><p className="desk-status">{state(row)} {live&&row.rating&&<ScoreBadge score={row.rating}/>}</p>{live&&!row.viewer_agent&&<small>{timeoutNotice()}</small>}
     {row.serial&&<p>{row.model} · {row.serial}<br/><span className="desk-warranty">{row.warranty&&row.warranty>=new Date().toISOString().slice(0,10)&&<ShieldCheck size={16}/>} {warrantyText(row.warranty)}{row.warranty&&<WarrantyRemaining date={row.warranty}/>}</span></p>}
@@ -144,7 +147,7 @@ function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>v
         e.preventDefault()
         if(!e.repeat&&!busy&&(draft.trim()||attached))e.currentTarget.form?.requestSubmit()
       }
-    }} value={draft} onChange={e=>typing(e.target.value)} maxLength={4000} required={!attached}/></label><label className="file-pick">📎 <span>{attachment.current?.files?.[0]?.name||t("Файл","File")}</span><input type="file" ref={attachment} onChange={e=>setAttached(!!e.target.files?.length)}/></label><button className="btn btn-primary" disabled={busy||(!draft.trim()&&!attached)} aria-label={t('Изпрати','Send')} title={t('Изпрати','Send')}>{live?<Send size={18}/>:t('Изпрати','Send')}</button></form>}
+    }} value={draft} onChange={e=>typing(e.target.value)} maxLength={4000} required={!attached}/></label><label className="file-pick">📎 <span>{(attachment.current?.files?.length||0)>1?attachment.current?.files?.length+" "+t("файла","files"):attachment.current?.files?.[0]?.name||t("Файл","File")}</span><input type="file" multiple ref={attachment} onChange={e=>setAttached(!!e.target.files?.length)}/></label><button className="btn btn-primary" disabled={busy||(!draft.trim()&&!attached)} aria-label={t('Изпрати','Send')} title={t('Изпрати','Send')}>{live?<Send size={18}/>:t('Изпрати','Send')}</button></form>}
     {(!row.viewer_agent||row.agent)&&<button className="btn btn-quiet" disabled={busy} onClick={()=>action('close')}>{t('Приключи разговора','End conversation')}</button>}</>}
     {onDelete&&row.channel==="ticket"&&!row.viewer_agent&&<button type="button" className="btn btn-quiet" disabled={busy} onClick={remove}>{t("Изтрий запитването","Delete inquiry")}</button>}</footer>
   </>}</>
@@ -168,7 +171,7 @@ export default function Support({trees}:{trees:Tree[]}){
     e.preventDefault();if(busy)return
     const form=e.currentTarget,data=Object.fromEntries(new FormData(form)),win=channel==='chat'?popup('about:blank'):null
     setBusy(true);setError('');setBlocked(null)
-    try{const r=await request<{id:number}>('/support',{method:'POST',body:JSON.stringify({...data,file:await upload(data.file as File),channel,tree_id:treeId?Number(treeId):null})})
+    try{const r=await request<{id:number}>('/support',{method:'POST',body:JSON.stringify({...data,file:undefined,files:await uploads((form.elements.namedItem("file") as HTMLInputElement)?.files),channel,tree_id:treeId?Number(treeId):null})})
       if(channel==='chat'){if(win)win.location.replace(chatUrl(r.id));else setBlocked(r.id)}else select(r.id)
       form.reset();setTree('');refresh(v=>v+1)
     }catch(e){win?.close();setError((e as Error).message)}finally{setBusy(false)}
@@ -202,5 +205,6 @@ export default function Support({trees}:{trees:Tree[]}){
       <label>{t('Тема','Subject')}<input required name="subject" minLength={2} maxLength={140}/></label><label>{t('Опиши проблема','Describe the issue')}<textarea required name="body" maxLength={4000}/></label><InquiryAttachment/>
       <button disabled={busy} className="btn btn-primary">{channel==='chat'?t('Поискай връзка с агент','Request live chat'):t('Изпрати запитване','Submit request')}</button></form>}</section></div></main>
 }
+
 
 

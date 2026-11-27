@@ -903,24 +903,32 @@ def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
 
 class Upload(BaseModel):
     name: str = Field(min_length=1,max_length=180)
-    content: str = Field(min_length=1,max_length=2796204)
+    content: str = Field(min_length=1,max_length=6990508)
 
 
 def save_support_message(db,t,by_agent,data):
-    message=SupportMessage(ticket=t.id,by_agent=by_agent,body=data.body)
-    db.add(message)
-    if data.file:
+    uploads=([data.file] if data.file else [])+data.files
+    if not uploads:
+        db.add(SupportMessage(ticket=t.id,by_agent=by_agent,body=data.body))
+        return
+    remaining=5*1024*1024
+    for index,upload in enumerate(uploads):
         try:
-            content=base64.b64decode(data.file.content,validate=True)
+            content=base64.b64decode(upload.content,validate=True)
         except ValueError:
             raise HTTPException(422,'Невалиден файл.')
-        if len(content)>2097152:
-            raise HTTPException(413,'Максимум 2 MB.')
+        remaining-=len(content)
+        if remaining<0:
+            raise HTTPException(413,'Файловете трябва да са до 5 MB общо.')
+        message=SupportMessage(ticket=t.id,by_agent=by_agent,body=data.body if index==0 else upload.name)
+        db.add(message)
         db.flush()
-        db.add(SupportFile(message=message.id,name=data.file.name,content=content))
+        db.add(SupportFile(message=message.id,name=upload.name,content=content))
+
 
 
 class TicketInput(BaseModel):
+    files: list[Upload] = Field(default_factory=list)
     file: Upload | None = None
     category: Literal['account','connection','performance','warranty','other']
     channel: Literal['ticket','chat']
@@ -930,6 +938,7 @@ class TicketInput(BaseModel):
 
 
 class SupportReply(BaseModel):
+    files: list[Upload] = Field(default_factory=list)
     file: Upload | None = None
     body: Annotated[str, StringConstraints(strip_whitespace=True,min_length=1,max_length=4000)]
 
@@ -1238,6 +1247,7 @@ if (FRONTEND_DIST / 'index.html').is_file():
         if resolved.is_relative_to(FRONTEND_DIST.resolve()) and resolved.is_file():
             return FileResponse(resolved)
         return FileResponse(FRONTEND_DIST / 'index.html', headers={'Cache-Control':'no-cache'})
+
 
 
 

@@ -5,16 +5,29 @@ import './support-attachments.css'
 
 const label=(bg:string,en:string)=>getLanguage()==='en'?en:bg
 
+function fileIcon(ext:string){
+  if(['jpg','jpeg','png','webp','avif','gif','bmp'].includes(ext))return ImageIcon
+  if(['xls','xlsx','csv','ods'].includes(ext))return FileSpreadsheet
+  if(['zip','rar','7z','gz'].includes(ext))return FileArchive
+  return ['pdf','txt','doc','docx'].includes(ext)?FileText:File
+}
+
 export function InquiryAttachment(){
-  const [name,setName]=useState('')
+  const [names,setNames]=useState<string[]>([])
   const input=useRef<HTMLInputElement>(null)
   useEffect(()=>{
     const form=input.current?.form
-    const reset=()=>setName('')
+    const reset=()=>setNames([])
     form?.addEventListener('reset',reset)
     return ()=>form?.removeEventListener('reset',reset)
   },[])
-  return <label className="inquiry-upload"><Paperclip size={20}/><span><strong>{name||label('Прикачи файл или снимка','Attach a file or photo')}</strong><small>{label('До 2 MB','Up to 2 MB')}</small></span><input type="file" name="file" ref={input} onChange={ev=>setName(ev.target.files?.[0]?.name||'')}/></label>
+  return <div><label className="inquiry-upload"><Paperclip size={20}/><span><strong>{label('Избери файлове или снимки','Choose files or photos')}</strong><small>{label('До 5 MB общо','Up to 5 MB total')}</small></span><input type="file" multiple name="file" ref={input} onChange={ev=>setNames(Array.from(ev.target.files??[],f=>f.name))}/></label>
+    {names.map((name,i)=>{
+      const ext=name.split('.').pop()?.toLowerCase()||''
+      const Icon=fileIcon(ext)
+      return <div className="selected-support-file" key={i}><Icon size={20}/><span>{name}</span></div>
+    })}</div>
+
 }
 
 async function fileBlob(ticket:number,message:number,signal?:AbortSignal){
@@ -49,7 +62,7 @@ export function AttachmentCard({ticket,message,name}:{ticket:number;message:numb
     }catch(e){setError((e as Error).message)}
   }
   const sheet=['xls','xlsx','csv','ods'].includes(ext),archive=['zip','rar','7z','gz'].includes(ext)
-  const Icon=type?ImageIcon:sheet?FileSpreadsheet:archive?FileArchive:['pdf','txt','doc','docx'].includes(ext)?FileText:File
+  const Icon=fileIcon(ext)
   return <div className="support-attachment">
     {src&&<button className="attachment-preview" onClick={()=>dialog.current?.showModal()} aria-label={label('Отвори снимката','Open image')+' '+name}><img alt={name} src={src} onError={()=>setSrc('')}/></button>}
     <button className="attachment-document" onClick={save} aria-label={label('Изтегли','Download')+' '+name}><span data-kind={ext==='pdf'?'pdf':sheet?'sheet':archive?'archive':'file'}><Icon size={23}/></span><strong>{name}<small>{ext.toUpperCase().slice(0,10)||label('Файл','File')}</small></strong><Download size={16}/></button>
@@ -57,3 +70,4 @@ export function AttachmentCard({ticket,message,name}:{ticket:number;message:numb
     {src&&<dialog ref={dialog} className="attachment-dialog" aria-label={name} onClick={ev=>{if(ev.target===dialog.current)dialog.current.close()}}><header><strong>{name}</strong><button autoFocus onClick={()=>dialog.current?.close()} aria-label={label('Затвори','Close')}><X/></button></header><img src={src} alt={name}/></dialog>}
   </div>
 }
+
