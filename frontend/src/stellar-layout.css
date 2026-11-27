@@ -198,7 +198,7 @@
   .solar-theme :is(.signin-input,.context-selector,.device-row,.prompt-chips button,.thread-choice) {
     transition:background-color 180ms ease,border-color 180ms ease,box-shadow 200ms ease;
   }
-  .solar-theme :is(.signin-input,.context-selector):focus-within {
+  .solar-theme .signin-input:focus-within {
     box-shadow:0 0 0 3px color-mix(in srgb,var(--app-accent) 20%,transparent);
   }
   .solar-theme :is(.btn,.icon-btn,.mobile-nav button,.prompt-chips button) svg {
@@ -274,3 +274,8 @@
  .popover-head{flex-wrap:wrap;gap:4px}
  .desk-context,.desk-log article,.support-case{overflow-wrap:anywhere}
 }
+
+.solar-theme :is(button,a,select):focus-visible{outline:2px solid var(--app-accent);outline-offset:-3px}
+.solar-theme .context-selector:focus-within{box-shadow:none}
+.desk-confirm-end{margin:auto;width:min(26rem,calc(100% - 2rem));box-sizing:border-box;padding:1.4rem;color:var(--app-text);background:var(--app-surface);border:1px solid var(--app-edge);border-radius:18px}
+.desk-confirm-end::backdrop{background:#071610ab}.desk-confirm-end p{margin:.65rem 0 1.2rem}.desk-confirm-end footer{display:flex;flex-wrap:wrap;gap:.6rem}
