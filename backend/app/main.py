@@ -296,6 +296,11 @@ LEGACY_QR_HASHES = {
 }
 
 
+def is_permanent_invitation(code: str, digest: str) -> bool:
+    return any(compare_digest(table.get(code, ''), digest)
+               for table in (PRINTED_QR_HASHES, SHARED_QR_HASHES, LEGACY_QR_HASHES))
+
+
 def verify_pair(db: Session, code: str, claim: str, user: User) -> DeviceRegistration:
     requested = code.strip().upper()
     canonical = LEGACY_QR_ALIASES.get(requested, requested)
@@ -305,15 +310,15 @@ def verify_pair(db: Session, code: str, claim: str, user: User) -> DeviceRegistr
     digest = sha256(claim.encode()).hexdigest()
     invite = db.get(PairInvite,digest)
     if not reg or not (compare_digest(reg.claim_hash,digest)
-                       or compare_digest(PRINTED_QR_HASHES.get(reg.code,''),digest)
-                       or compare_digest(SHARED_QR_HASHES.get(reg.code,''),digest)
-                       or compare_digest(LEGACY_QR_HASHES.get(reg.code,''),digest)
+                       or is_permanent_invitation(reg.code, digest)
                        or (invite and invite.registration_id==reg.id)):
         raise HTTPException(status_code=404,detail='Неуспешно сдвояване. Провери QR кода и кода за регистрация.')
     if reg.claimed_tree_id:
-        if reg.bound_user_id==user.id or db.get(TreeMember,(reg.claimed_tree_id,user.id)):
+        tree = db.get(Tree, reg.claimed_tree_id)
+        already_added = tree.owner_id == user.id or db.get(TreeMember, (tree.id, user.id))
+        if already_added and not compare_digest(PRINTED_QR_HASHES.get(reg.code, ''), digest):
             raise HTTPException(409,'Дървото вече е добавено в профила.')
-    elif reg.bound_user_id not in (None,user.id) and not compare_digest(PRINTED_QR_HASHES.get(reg.code,''), digest):
+    elif reg.bound_user_id not in (None,user.id) and not is_permanent_invitation(reg.code, digest):
         raise HTTPException(status_code=409,detail='Това устройство вече е регистрирано.')
     if (user.role=='municipality' and reg.kind!='municipal') or (user.role=='owner' and reg.kind!='private'):
         raise HTTPException(status_code=403,detail='Устройството не принадлежи към този тип профил.')
@@ -325,14 +330,16 @@ def attach_device(db: Session, reg: DeviceRegistration, user: User, tree: Tree, 
     verify_pair(db,reg.code,claim,user)
     db.execute(delete(PairInvite).where(PairInvite.registration_id==reg.id,PairInvite.digest==sha256(claim.encode()).hexdigest()))
     if reg.claimed_tree_id:
-        db.add(TreeMember(tree_id=reg.claimed_tree_id,user_id=user.id))
-        db.flush()
-        return db.get(Tree,reg.claimed_tree_id)
+        existing = db.get(Tree, reg.claimed_tree_id)
+        if existing.owner_id != user.id and not db.get(TreeMember, (existing.id, user.id)):
+            db.add(TreeMember(tree_id=existing.id, user_id=user.id))
+            db.flush()
+        return existing
     # Reserve the inventory row before inserting a tree, even for simultaneous claims.
     reserved=db.execute(update(DeviceRegistration).where(
         DeviceRegistration.id==reg.id, DeviceRegistration.claimed_tree_id.is_(None),
         or_(DeviceRegistration.bound_user_id.is_(None),DeviceRegistration.bound_user_id==user.id,
-            compare_digest(PRINTED_QR_HASHES.get(reg.code,''),sha256(claim.encode()).hexdigest()))
+            is_permanent_invitation(reg.code, sha256(claim.encode()).hexdigest()))
     ).values(bound_user_id=user.id))
     if reserved.rowcount!=1:
         raise HTTPException(status_code=409,detail='Това устройство вече е регистрирано.')
