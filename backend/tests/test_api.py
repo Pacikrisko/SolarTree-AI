@@ -674,6 +674,7 @@ def test_support_queue_privacy_and_agent_replies():
         assert len(thread['messages'])==2 and thread['agent']=='Support 2'
         batch=[{'name':'first.pdf','content':'YQ=='},{'name':'second.png','content':'Yg=='}]
         assert c.post(path+'/reply',headers=owner,json={'body':'Files','files':batch}).status_code==200
+        assert c.post(path+'/reply',headers=owner,json={'body':'Too soon'}).status_code==429
         before=c.get(path,headers=agent).json()['messages']
         assert [m['file'] for m in before[-2:]]==['first.pdf','second.png']
         batch[0]['content']=base64.b64encode(bytes(5*1024*1024)).decode()
@@ -771,3 +772,10 @@ def test_existing_printed_qr_codes_can_be_reused_by_additional_accounts():
         listing = c.get('/api/trees', headers=viewer)
         assert listing.status_code == 200
         assert {t['code'] for t in listing.json()} >= {'IVAN-TREE-0001', 'SOLIX-ARC-0001'}
+
+
+def test_bulgarian_settlement_names():
+    from app.locations import locate
+    for bg,en in [('гр. София','Sofia'),('Стара Загора','Stara Zagora'),('Търговище, Търговище','Targovishte, Targovishte')]:
+        assert locate(bg)==locate(en) and locate(bg)[0] is not None
+    assert locate('Абланица')==(None,None)

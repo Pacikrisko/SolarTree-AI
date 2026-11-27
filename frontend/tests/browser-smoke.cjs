@@ -49,6 +49,7 @@ async function main() {
     const response = await page.request.get(origin+'/api/trees',{headers:{Authorization:'Bearer '+token}})
     const [tree] = await response.json()
     assert.equal(tree.name,'Browser tree')
+    assert.ok(Math.abs(tree.lat-42.70)<0.1 && Math.abs(tree.lng-23.32)<0.1,'Sofia pin')
     const agentPage = await browser.newPage()
     const account = await agentPage.request.post(origin+'/api/auth/register',{data:{
       name:'Test agent',email:'agent-ui@example.com',password:'Test-agent-73591'
@@ -92,6 +93,8 @@ async function main() {
     await agentPage.getByRole('heading',{name:/Live session history|История на живите сесии/}).waitFor()
     await customerChat.getByRole('button',{name:'5 / 5',exact:true}).click()
     await customerChat.getByText(/Благодарим за оценката|Thank you for your rating/).waitFor()
+    await customerChat.locator('a.session-home').click()
+    await customerChat.locator('.dashboard').waitFor()
     await customerChat.close()
     await agentPage.context().close()
     for(const width of [390,768,1440]){
