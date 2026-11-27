@@ -51,9 +51,8 @@ function NewTreeModal({onClose,onSave,onPhoneAdded}:{onClose:()=>void;onSave:(va
   async function resolve(c=code,t=token){const request=++resolution.current;setBusy(true);setError('');setResolved(null);try{const r=await api.pairResolve(c,t);if(request!==resolution.current)return;setCode(r.code);setToken(t);setResolved(r)}catch(e){if(request===resolution.current)setError((e as Error).message)}finally{if(request===resolution.current)setBusy(false)}}
   async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError('');try{if(!resolved)throw new Error(tr("Първо разпознай устройството."));await onSave({name,code:resolved.code,claim_token:token,location,lat:null,lng:null})}catch(err){setError((err as Error).message)}finally{setBusy(false)}}
   return <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><div className="modal pairing-modal"><div className="modal-heading"><div><span className="eyebrow">{tr("СВЪРЗВАНЕ НА УСТРОЙСТВО")}</span><h2>{tr("Добавяне на дърво")}</h2></div><IconButton title={tr("Затвори")} icon={X} onClick={onClose}/></div>
-    <PhonePairing onAdded={onPhoneAdded}/>
-    <div className="pair-divider">{tr("или сканирай директно с компютъра")}</div>
     <PairQrScanner onRead={(c,t)=>{setCode(c);setToken(t);void resolve(c,t)}}/>
+    <PhonePairing onAdded={onPhoneAdded}/>
     <div className="pair-divider">{tr("или въведи регистрационните данни")}</div>
     <form className="modal-form" onSubmit={submit}><label>{tr("Сериен номер")}<input required minLength={3} maxLength={40} value={code} onChange={e=>{resolution.current++;setBusy(false);setCode(e.target.value.toUpperCase());setResolved(null)}} placeholder={tr("Напр. ST-M6-1001")}/></label><label>{tr("Код за свързване")}<input required minLength={12} maxLength={200} value={token} onChange={e=>{resolution.current++;setBusy(false);setToken(e.target.value);setResolved(null)}} placeholder={tr("Код от устройството или QR етикета")}/></label>
       <button type="button" className="btn btn-outline full" disabled={busy||!code||!token} onClick={()=>resolve()}><ScanLine size={16}/> {busy?tr("Проверка…"):tr("Разпознай модела")}</button>
