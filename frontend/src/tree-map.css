@@ -11,3 +11,6 @@
 .tree-map-info select,.tree-map-info input{padding:.6rem;width:100%;min-width:0;border:1px solid var(--app-edge);border-radius:8px;background:var(--stage-pane);color:var(--app-text)}
 .tree-map-info form{display:grid;gap:8px}.tree-map-info .btn{margin:4px 5px 0 0}
 @media(max-width:720px){.solar-theme .tree-map{grid-template-columns:minmax(0,1fr)}.tree-map-art svg{max-height:245px}}
+
+.tree-map-art .province{stroke:var(--app-sub);stroke-width:.7;stroke-linejoin:round}.sofia-label{fill:var(--app-text);pointer-events:none}.sofia-label text{font-size:12px;font-weight:650;paint-order:stroke;stroke:var(--app-surface);stroke-width:2px}.session-finished{display:flex;flex-direction:column;align-items:stretch}.session-finished .session-home{align-self:center;margin:auto 0 .6rem;min-height:44px}
+@media(pointer:coarse){.main-scroll{overscroll-behavior-y:contain}.main-scroll[data-pull]::before{content:attr(data-pull);position:sticky;top:0;display:block;text-align:center;background:var(--app-surface);color:var(--app-text);z-index:3}}

@@ -70,6 +70,8 @@ function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>v
   const [row,setRow]=useState<Thread|null>(null),[note,setNote]=useState(''),[draft,write]=useState(''),[busy,setBusy]=useState(false),[ended,end]=useState(false),[tick,reload]=useState(0)
   const attachment=useRef<HTMLInputElement>(null),[attached,setAttached]=useState(false)
   const confirmEnd=useRef<HTMLDialogElement>(null)
+  const [cooling,setCooling]=useState(false)
+  useEffect(()=>{if(cooling){const timer=setTimeout(()=>setCooling(false),2000);return ()=>clearTimeout(timer)}},[cooling])
   const log=useRef<HTMLDivElement>(null),lastTyping=useRef(0),lastMessage=useRef<number|null>(null)
   const audio=useRef<AudioContext|null>(null)
   function unlock(){
@@ -128,16 +130,16 @@ function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>v
   },[id,live,tick,ended])
   useEffect(()=>{if(log.current)log.current.scrollTop=log.current.scrollHeight},[row?.messages.length])
   async function action(name:'accept'|'reply'|'close'){
-    if(busy)return
+    if(busy||(name==='reply'&&cooling))return
     setBusy(true)
     try{
       await post('/support/'+id+'/'+name,name==='reply'?{body:draft.trim()||attachment.current?.files?.[0]?.name,files:await uploads(attachment.current?.files)}:undefined)
-      if(name==='reply'){if(attachment.current)attachment.current.value='';setAttached(false);if(live)setRow(r=>r&&!r.viewer_agent?{...r,remaining:null}:r);write('');if(live)chime()}
+      if(name==='reply'){if(live&&!row?.viewer_agent)setCooling(true);if(attachment.current)attachment.current.value='';setAttached(false);if(live)setRow(r=>r&&!r.viewer_agent?{...r,remaining:null}:r);write('');if(live)chime()}
       if(name==='close'&&live){end(true);setRow(null)}
       else reload(v=>v+1)
     }catch(e){setNote((e as Error).message)}finally{setBusy(false)}
   }
-  if(ended)return <div className="session-finished" role="status"><ShieldCheck/><h3>{t('Сесията приключи','Session ended')}</h3><p>{t('Достъпът на агента до дървото е прекратен.','Agent access to this tree has ended.')}</p><SessionRating id={id}/></div>
+  if(ended)return <div className="session-finished" role="status"><ShieldCheck/><h3>{t('Сесията приключи','Session ended')}</h3><p>{t('Достъпът на агента до дървото е прекратен.','Agent access to this tree has ended.')}</p><SessionRating id={id}/><a className="btn btn-primary session-home" href="/#/overview">{t("Към началото","Back to home")}</a></div>
   return <>{note&&<p role="alert">{note}</p>}{!row?!note&&<p>{t('Свързване…','Connecting…')}</p>:<>
     <header className="desk-context"><small>#{id} · {categories()[row.category]}</small><h2>{row.subject}</h2><p className="desk-status">{state(row)} {live&&row.rating&&<ScoreBadge score={row.rating}/>}</p>{live&&!row.viewer_agent&&<small>{timeoutNotice()}</small>}
     {row.serial&&<p>{row.model} · {row.serial}<br/><span className="desk-warranty">{row.warranty&&row.warranty>=new Date().toISOString().slice(0,10)&&<ShieldCheck size={16}/>} {warrantyText(row.warranty)}{row.warranty&&<WarrantyRemaining date={row.warranty}/>}</span></p>}
@@ -148,7 +150,7 @@ function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>v
         e.preventDefault()
         if(!e.repeat&&!busy&&(draft.trim()||attached))e.currentTarget.form?.requestSubmit()
       }
-    }} value={draft} onChange={e=>typing(e.target.value)} maxLength={4000} required={!attached}/></label><label className="file-pick">📎 <span>{(attachment.current?.files?.length||0)>1?attachment.current?.files?.length+" "+t("файла","files"):attachment.current?.files?.[0]?.name||t("Файл","File")}</span><input type="file" multiple ref={attachment} onChange={e=>setAttached(!!e.target.files?.length)}/></label><button className="btn btn-primary" disabled={busy||(!draft.trim()&&!attached)} aria-label={t('Изпрати','Send')} title={t('Изпрати','Send')}>{live?<Send size={18}/>:t('Изпрати','Send')}</button></form>}
+    }} value={draft} onChange={e=>typing(e.target.value)} maxLength={4000} required={!attached}/></label><label className="file-pick">📎 <span>{(attachment.current?.files?.length||0)>1?attachment.current?.files?.length+" "+t("файла","files"):attachment.current?.files?.[0]?.name||t("Файл","File")}</span><input type="file" multiple ref={attachment} onChange={e=>setAttached(!!e.target.files?.length)}/></label><button className="btn btn-primary" disabled={busy||cooling||(!draft.trim()&&!attached)} aria-label={t('Изпрати','Send')} title={t('Изпрати','Send')}>{live?<Send size={18}/>:t('Изпрати','Send')}</button></form>}
     {(!row.viewer_agent||row.agent)&&<button className="btn btn-quiet" disabled={busy} onClick={()=>live?confirmEnd.current?.showModal():action('close')}>{t('Приключи разговора','End conversation')}</button>}</>}
     {live&&<dialog className="desk-confirm-end" ref={confirmEnd} aria-labelledby="end-chat-title"><h3 id="end-chat-title">{t('Да приключим ли чата?','End this chat?')}</h3><p>{t('След приключване няма да можеш да изпращаш съобщения в този разговор.','Once the chat ends, you can no longer send messages in this conversation.')}</p><footer><button type="button" autoFocus className="btn btn-outline" onClick={()=>confirmEnd.current?.close()}>{t('Продължи чата','Keep chatting')}</button><button type="button" className="btn btn-primary" disabled={busy} onClick={()=>{confirmEnd.current?.close();void action('close')}}>{t('Да, приключи','Yes, end chat')}</button></footer></dialog>}
     {onDelete&&row.channel==="ticket"&&!row.viewer_agent&&<button type="button" className="btn btn-quiet" disabled={busy} onClick={remove}>{t("Изтрий запитването","Delete inquiry")}</button>}</footer>

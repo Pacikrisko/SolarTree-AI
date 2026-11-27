@@ -35,6 +35,7 @@ from .seed import DEMO_MODE, seed_demo
 from .google_login import google_client_id, google_user, verified_claims
 from .password_reset import router as password_reset_router
 from .security import hash_password, verify_password, create_token, current_user, require_user
+from .locations import locate
 from .ml import predict_power, detect_anomaly
 from .maintenance import initialize_maintenance, maintenance_for, COMPONENTS
 from .energy_outlook import energy_outlook
@@ -66,6 +67,8 @@ async def lifespan(app: FastAPI):
         seed_demo(db)
         initialize_maintenance(db)
         for tree in db.scalars(select(Tree)):
+            if tree.lat is None and tree.lng is None:
+                tree.lat,tree.lng=locate(tree.location or '')
             register_warranty(db,tree)
         db.commit()
     yield
@@ -302,7 +305,9 @@ def attach_device(db: Session, reg: DeviceRegistration, user: User, tree: Tree, 
     ).values(bound_user_id=user.id))
     if reserved.rowcount!=1:
         raise HTTPException(status_code=409,detail='Това устройство вече е регистрирано.')
-    if tree.code == 'IVAN-TREE-0001' and tree.lat is None and tree.lng is None:
+    if tree.lat is None and tree.lng is None:
+        tree.lat,tree.lng=locate(tree.location or '')
+    if tree.code == 'IVAN-TREE-0001' and tree.lat is None and tree.lng is None and tree.location in ('Добавено чрез QR','',None):
         tree.lat, tree.lng, tree.location = 42.4258, 25.6345, 'Stara Zagora'
     db.add(tree)
     db.flush()
@@ -534,6 +539,10 @@ def phone_scan(token:str,data:ScanIn,db:Session=Depends(get_db)):
     candidate=tree
     tree=attach_device(db,reg,user,tree,claim)
     session.status='completed';session.tree_id=tree.id
+    if tree is not candidate and tree.lat is None and tree.lng is None:
+        lat,lng=locate(data.location)
+        if lat is not None:
+            tree.lat,tree.lng,tree.location=lat,lng,data.location.strip()
     if DEMO_MODE and candidate is tree and not is_urban_simulator(tree): add_demo_urban_history(db,tree)
     db.commit();initialize_maintenance(db)
     return {'ok':True,'name':tree.name,'model':get_model(tree.model_code, tree.code)['name']}
@@ -1269,10 +1278,13 @@ def support_reply(ticket_id:int,data:SupportReply,db:Session=Depends(get_db),use
     if by_agent:
         if t.agent not in (None,user.id): raise HTTPException(409,'Друг агент работи по случая.')
         t.agent=user.id
+    cooling=False
     if t.channel=='chat':
         lease=db.get(LiveLease,t.id)
         connection=db.get(ChatConnection,t.id)
         if lease:
+            cooling=bool(not by_agent and connection and lease.customer_seen>connection.accepted and
+                         support_now()-lease.customer_seen<timedelta(seconds=2))
             if not by_agent:
                 lease.customer_seen=support_now()
                 lease.agent_seen=None
@@ -1282,6 +1294,8 @@ def support_reply(ticket_id:int,data:SupportReply,db:Session=Depends(get_db),use
             if by_agent: connection.agent_typing=None
             else: connection.customer_typing=None
     save_support_message(db,t,by_agent,data)
+    if cooling:
+        raise HTTPException(429,'Изчакай 2 секунди между съобщенията.',headers={'Retry-After':'2'})
     db.commit()
     return {'ok':True}
 
