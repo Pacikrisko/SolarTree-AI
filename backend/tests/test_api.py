@@ -749,6 +749,7 @@ def test_existing_printed_qr_codes_can_be_reused_by_additional_accounts():
                 from sqlalchemy import select
                 existing = db.scalar(select(Tree).where(Tree.code == canonical))
                 assert existing is not None
+                original_pin = existing.lat, existing.lng
                 original_owner = existing.owner_id
                 tree_id = existing.id
             joined = c.post('/api/trees', headers=viewer, json={
@@ -760,7 +761,12 @@ def test_existing_printed_qr_codes_can_be_reused_by_additional_accounts():
             assert c.get(f'/api/trees/{tree_id}', headers=viewer).status_code == 200
             assert c.get(f'/api/trees/{tree_id}/readings', headers=viewer).status_code == 200
             assert c.patch(f'/api/trees/{tree_id}/coordinates', headers=viewer,
-                json={'lat': 42.0, 'lng': 25.0}).status_code == 403
+                json={'lat': 42.0, 'lng': 25.0}).status_code == 200
+            saved = c.get(f'/api/trees/{tree_id}', headers=viewer).json()
+            assert (saved['lat'], saved['lng']) == (42.0, 25.0)
+            with SessionLocal() as db:
+                shared = db.get(Tree, tree_id)
+                assert (shared.lat, shared.lng) == original_pin
             assert c.put(f'/api/trees/{tree_id}/maintenance/water_filter',
                 headers=viewer, json={'interval_days': 90}).status_code == 403
             assert c.post('/api/pair/resolve', headers=viewer, json={

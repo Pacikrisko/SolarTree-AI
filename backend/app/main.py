@@ -221,7 +221,12 @@ def find_tree(db: Session, tree_id: int, user: User) -> Tree:
         raise HTTPException(status_code=404,detail='Дървото не е намерено в твоя профил.')
     return tree
 
-def to_tree(db: Session, tree: Tree):
+def to_tree(db: Session, tree: Tree, user_id: int | None = None):
+    lat, lng = tree.lat, tree.lng
+    if user_id is not None and user_id != tree.owner_id:
+        member = db.get(TreeMember, (tree.id, user_id))
+        if member and member.pin_lat is not None and member.pin_lng is not None:
+            lat, lng = member.pin_lat, member.pin_lng
     now=datetime.now(timezone.utc).replace(tzinfo=None)
     operating = None
     sensor = None
@@ -237,7 +242,7 @@ def to_tree(db: Session, tree: Tree):
     warranty=db.get(DeviceWarranty,tree.code)
     return {'prototype_estimates':{**prototype_estimates(now),'battery_pct':round(65+15*sin(2*pi*(now.hour-8)/24))} if tree.model_code=='ST-IVAN-P1' else None,'warranty_until':warranty.valid_until.date().isoformat() if warranty else None,'id':tree.id,'code':tree.code,'name':tree.name,'kind':tree.kind,
             'model':get_model(tree.model_code, tree.code),
-            'location':tree.location,'lat':tree.lat,'lng':tree.lng,
+            'location':tree.location,'lat':lat,'lng':lng,
             'latest':to_reading(last) if last else None,
             'simulation':operating, 'open_alerts':open_alerts,
             'media_kind': media_kind(tree.model_code),
@@ -575,7 +580,7 @@ def resources(tree_id: int, water_fill_pct: float = Query(default=100.0, ge=0, l
 
 @app.get('/api/trees')
 def trees(db:Session=Depends(get_db),user:User=Depends(logged_in)):
-    return [to_tree(db,t) for t in accessible_trees(db,user)]
+    return [to_tree(db,t,user.id) for t in accessible_trees(db,user)]
 @app.post('/api/trees',status_code=201)
 def create_tree(data:TreeIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     # Keep one Tree per serial; subsequent valid QR scans link a new account to it.
@@ -590,7 +595,7 @@ def create_tree(data:TreeIn,db:Session=Depends(get_db),user:User=Depends(logged_
     if DEMO_MODE and candidate is tree and not is_urban_simulator(tree): add_demo_urban_history(db,tree)
     db.commit();db.refresh(tree)
     initialize_maintenance(db)
-    return to_tree(db,tree)
+    return to_tree(db,tree,user.id)
 class CoordinatesIn(BaseModel):
     lat: float = Field(ge=-90, le=90)
     lng: float = Field(ge=-180, le=180)
@@ -599,9 +604,11 @@ class CoordinatesIn(BaseModel):
 @app.patch('/api/trees/{tree_id}/coordinates')
 def set_coordinates(tree_id:int, data:CoordinatesIn, db:Session=Depends(get_db), user:User=Depends(logged_in)):
     tree=find_tree(db,tree_id,user)
-    if not can_manage(db,user,tree):
-        raise HTTPException(403, 'Нямаш достъп за промяна на местоположението.')
-    tree.lat,tree.lng=data.lat,data.lng
+    if tree.owner_id == user.id:
+        tree.lat, tree.lng = data.lat, data.lng
+    else:
+        member = db.get(TreeMember, (tree.id, user.id))
+        member.pin_lat, member.pin_lng = data.lat, data.lng
     db.commit()
     return {'ok':True}
 
@@ -646,7 +653,7 @@ def tree_archive(tree_id:int,month:str|None=None,db:Session=Depends(get_db),user
 
 @app.get('/api/trees/{tree_id}')
 def tree_detail(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
-    return to_tree(db,find_tree(db,tree_id,user))
+    return to_tree(db,find_tree(db,tree_id,user),user.id)
 @app.get('/api/trees/{tree_id}/config')
 def get_tree_config(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     tree=find_tree(db,tree_id,user)
@@ -912,7 +919,7 @@ def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
         raise HTTPException(status_code=503,detail='Облачният чат очаква настройка на Cloudflare в Render. Можеш да използваш справките.')
     devices=[]
     for tree in ([focus] if focus is not None else accessible_trees(db,user)):
-        device=to_tree(db,tree)
+        device=to_tree(db,tree,user.id)
         device['maintenance']=maintenance_for(db,tree)
         if not data.report:
             alerts=db.scalars(select(Alert).where(Alert.tree_id==tree.id).order_by(desc(Alert.id)).limit(10)).all()

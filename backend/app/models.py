@@ -142,6 +142,8 @@ class ChatExchange(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 class TreeMember(Base):
+    pin_lat: Mapped[float | None] = mapped_column(nullable=True)
+    pin_lng: Mapped[float | None] = mapped_column(nullable=True)
     __tablename__ = 'tree_members'
     tree_id: Mapped[int] = mapped_column(ForeignKey('trees.id'), primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), primary_key=True)

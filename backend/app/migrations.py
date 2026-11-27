@@ -5,6 +5,11 @@ from .catalog import get_model
 def upgrade(engine):
     with engine.begin() as conn:
         inspector = inspect(conn)
+        if inspector.has_table('tree_members'):
+            columns = {column['name'] for column in inspector.get_columns('tree_members')}
+            for name in ('pin_lat', 'pin_lng'):
+                if name not in columns:
+                    conn.execute(text(f'ALTER TABLE tree_members ADD COLUMN {name} FLOAT'))
         for table, column in [('trees','code'),('device_registrations','code'),('support_tickets','serial'),('device_warranties','serial')]:
             if inspector.has_table(table) and column in {c['name'] for c in inspector.get_columns(table)}:
                 for old,new in [('URBAN-TREE-0001','SOLIX-ARC-0001'),('URBAN-TREE-0002','SOLIX-HALO-0002')]:
