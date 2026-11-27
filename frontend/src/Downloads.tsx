@@ -16,7 +16,7 @@ export default function Downloads(){
     <div className="download-actions">{([[Monitor,'Windows','Solix-Setup.exe'],[Smartphone,'Android','Solix.apk']] as const).map(([Icon,name,file])=>{
       const Device=Icon
       return <a key={String(name)} href={base+file}><Device size={19}/>{String(name)}<Download size={15}/></a>
-    })}<button type="button" aria-expanded={guide} onClick={()=>setGuide(!guide)}><Smartphone size={19}/>iPhone</button></div>
-    {guide&&<p className="iphone-guide">{en?'On iPhone, open Solix in Safari. Tap Share → Add to Home Screen. Enable Open as Web App if shown, then tap Add.':'На iPhone отвори Solix в Safari. Натисни „Споделяне“ → „Добави към началния екран“. Ако виждаш „Отваряне като уеб приложение“, включи го и натисни „Добави“.'}</p>}
+    })}<a href="/Solix.mobileconfig" onClick={()=>setGuide(true)}><Smartphone size={19}/>iPhone<Download size={15}/></a></div>
+    {guide&&<p className="iphone-guide">{en?'Open Settings → Profile Downloaded → Install to add the Solix icon.':'Отвори Настройки → Изтеглен профил → Инсталиране, за да добавиш иконата на Solix.'}</p>}
   </footer>
 }

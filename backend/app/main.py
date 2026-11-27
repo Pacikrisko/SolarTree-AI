@@ -1238,6 +1238,11 @@ if (FRONTEND_DIST / 'index.html').is_file():
     def production_home():
         return FileResponse(FRONTEND_DIST / 'index.html', headers={'Cache-Control':'no-cache'})
 
+    @app.get('/Solix.mobileconfig', include_in_schema=False)
+    def iphone_home_screen_profile():
+        return FileResponse(FRONTEND_DIST / 'Solix.mobileconfig', media_type='application/x-apple-aspen-config',
+                            filename='Solix.mobileconfig')
+
     @app.get('/{spa_path:path}', include_in_schema=False)
     def production_spa(spa_path: str):
         # Keep missing API routes as real 404 responses instead of returning HTML.

@@ -7,3 +7,11 @@
 @media(max-width:580px){.download-actions{width:100%;gap:8px}.download-actions :is(a,button){flex:1}.download-identity img{width:42px;height:42px}}
 
 .download-actions button{border:0;cursor:pointer;font:inherit}.download-banner .iphone-guide{flex-basis:100%;padding-top:.75rem;border-top:1px solid #548067;line-height:1.55}
+
+@media(max-width:900px){
+  .solar-theme .main-scroll:has(.download-banner){padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+  .solar-theme .modal-backdrop:has(.pairing-modal){position:fixed;inset:0;height:100dvh;box-sizing:border-box;display:flex;align-items:center;justify-content:center;z-index:10000;padding:max(10px,env(safe-area-inset-top)) 12px max(10px,env(safe-area-inset-bottom));overflow:hidden}
+  .solar-theme .modal-backdrop .pairing-modal{box-sizing:border-box;max-height:100%;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  .solar-theme .pairing-modal .modal-heading{position:sticky;top:-1px;background:var(--app-surface);z-index:3;align-items:center;padding-block:6px}
+  .solar-theme .pairing-modal .modal-heading button{min-width:44px;min-height:44px;flex:none}
+}
