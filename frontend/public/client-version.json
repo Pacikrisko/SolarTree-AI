@@ -1,7 +1,8 @@
 {
-  "minimumBuild": 3,
+  "minimumBuild": 4,
   "downloads": {
     "windows": "https://github.com/Pacikrisko/SolarTree-AI/releases/latest/download/Solix-Setup.exe",
     "android": "https://github.com/Pacikrisko/SolarTree-AI/releases/latest/download/Solix.apk"
   }
 }
+

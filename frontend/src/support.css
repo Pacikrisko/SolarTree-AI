@@ -57,3 +57,15 @@
 .chat-stars {display:flex;gap:.25rem;flex-wrap:wrap}
 .chat-stars button {background:transparent;color:inherit;font-size:1.8rem;cursor:pointer;border:0;min-width:44px;min-height:44px}
 .idle-warning {display:block;padding:.45rem .7rem;border-inline-start:3px solid #d19742}
+
+
+.solix-downloads,.chat-stars{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.65rem}
+.solix-downloads{padding:1.2rem;text-align:center;width:100%}
+.session-review{text-align:center}
+.chat-stars button{color:#858b87;transition:color .15s,transform .15s}
+.chat-stars button[data-lit=true]{color:#edaf16}
+.chat-stars button:hover{transform:scale(1.13)}
+.desk-window .desk-composer form.modal-form{grid-template-columns:minmax(0,1fr) auto auto}
+.file-pick{position:relative;cursor:pointer;max-width:7em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-pick input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
+@media(prefers-reduced-motion:reduce){.chat-stars button{transition:none}}

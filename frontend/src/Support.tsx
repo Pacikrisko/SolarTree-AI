@@ -25,7 +25,7 @@ type Ticket={id:number;subject:string;category:keyof ReturnType<typeof categorie
 type Desk={agent:boolean;online:boolean;tickets:Ticket[]}
 type Stats={power_w:number|null;water_pct:number|null;oxygen_flow_lph:number|null;battery_pct:number|null;time:string|null}
 type Score={average:number|null;count:number}
-type Thread=Ticket & {remaining:number|null;rating:Score|null;typing:boolean;agent_photo:string|null;customer_photo:string|null;viewer_agent:boolean;stats:Stats|null;messages:{id:number;agent:boolean;body:string;time:string}[]}
+type Thread=Ticket & {remaining:number|null;rating:Score|null;typing:boolean;agent_photo:string|null;customer_photo:string|null;viewer_agent:boolean;stats:Stats|null;messages:{id:number;agent:boolean;body:string;file?:string;time:string}[]}
 const state=(r:Ticket)=>r.closed?t('Приключено','Closed'):r.agent?t('Агент · ','Agent · ')+r.agent:t('Очаква агент','Waiting for agent')
 const post=(path:string,data?:unknown)=>request(path,{method:'POST',body:data?JSON.stringify(data):undefined})
 const chatUrl=(id:number)=>location.pathname+'?support-session='+id
@@ -47,11 +47,30 @@ function SessionRating({id}:{id:number}){
     try{await request('/support/'+id+'/rating',{method:'PUT',body:JSON.stringify({stars:value})});setStars(value)}
     catch(e){setError((e as Error).message)}finally{setBusy(false)}
   }
+  const [preview,setPreview]=useState(0)
   if(!available)return null
-  return <section><h3>{t('Как оценяваш разговора?','How was your conversation?')}</h3><div className="chat-stars">{[1,2,3,4,5].map(n=><button key={n} type="button" disabled={busy} aria-pressed={stars===n} aria-label={n+' / 5'} onClick={()=>submit(n)}>{n<=(stars??0)?'★':'☆'}</button>)}</div><small role="status">{error||(stars?t('Благодарим за оценката!','Thank you for your rating!'):'')}</small></section>
+  return <section className="session-review"><h3>{t('Как оценяваш разговора?','How was your conversation?')}</h3><div className="chat-stars">{[1,2,3,4,5].map(n=><button key={n} type="button" data-lit={n<=(preview||stars||0)} onPointerEnter={()=>setPreview(n)} onPointerLeave={()=>setPreview(0)} onFocus={()=>setPreview(n)} onBlur={()=>setPreview(0)} disabled={busy} aria-pressed={stars===n} aria-label={n+' / 5'} onClick={()=>submit(n)}>★</button>)}</div><small role="status">{error||(stars?t('Благодарим за оценката!','Thank you for your rating!'):'')}</small></section>
+}
+async function upload(file?:File|null){
+  if(!file||!file.size)return undefined
+  if(file.size>2097152)throw Error(t('Избери файл до 2 MB.','Choose a file up to 2 MB.'))
+  const content=await new Promise<string>((resolve,reject)=>{
+    const reader=new FileReader()
+    reader.onload=()=>resolve(String(reader.result).split(',')[1])
+    reader.onerror=()=>reject(Error(t('Грешка при четене.','File read failed.')))
+    reader.readAsDataURL(file)
+  })
+  return {name:file.name,content}
+}
+async function download(id:number,message:number,name:string){
+  const response=await fetch('/api/support/'+id+'/files/'+message,{headers:{Authorization:'Bearer '+localStorage.getItem('solartree_token')}})
+  if(!response.ok)throw Error(t('Файлът е недостъпен.','File unavailable.'))
+  const url=URL.createObjectURL(await response.blob()),link=document.createElement('a')
+  link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)
 }
 function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>void}){
   const [row,setRow]=useState<Thread|null>(null),[note,setNote]=useState(''),[draft,write]=useState(''),[busy,setBusy]=useState(false),[ended,end]=useState(false),[tick,reload]=useState(0)
+  const attachment=useRef<HTMLInputElement>(null),[attached,setAttached]=useState(false)
   const log=useRef<HTMLDivElement>(null),lastTyping=useRef(0),lastMessage=useRef<number|null>(null)
   const audio=useRef<AudioContext|null>(null)
   function unlock(){
@@ -113,8 +132,8 @@ function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>v
     if(busy)return
     setBusy(true)
     try{
-      await post('/support/'+id+'/'+name,name==='reply'?{body:draft.trim()}:undefined)
-      if(name==='reply'){if(live)setRow(r=>r&&!r.viewer_agent?{...r,remaining:null}:r);write('');if(live)chime()}
+      await post('/support/'+id+'/'+name,name==='reply'?{body:draft.trim()||attachment.current?.files?.[0]?.name,file:await upload(attachment.current?.files?.[0])}:undefined)
+      if(name==='reply'){if(attachment.current)attachment.current.value='';setAttached(false);if(live)setRow(r=>r&&!r.viewer_agent?{...r,remaining:null}:r);write('');if(live)chime()}
       if(name==='close'&&live){end(true);setRow(null)}
       else reload(v=>v+1)
     }catch(e){setNote((e as Error).message)}finally{setBusy(false)}
@@ -124,13 +143,13 @@ function Conversation({id,live,onDelete}:{id:number;live:boolean;onDelete?:()=>v
     <header className="desk-context"><small>#{id} · {categories()[row.category]}</small><h2>{row.subject}</h2><p className="desk-status">{state(row)} {live&&row.rating&&<ScoreBadge score={row.rating}/>}</p>{live&&!row.viewer_agent&&<small>{timeoutNotice()}</small>}
     {row.serial&&<p>{row.model} · {row.serial}<br/><span className="desk-warranty">{row.warranty&&row.warranty>=new Date().toISOString().slice(0,10)&&<ShieldCheck size={16}/>} {warrantyText(row.warranty)}{row.warranty&&<WarrantyRemaining date={row.warranty}/>}</span></p>}
     {row.stats&&<section><h3>{t('Показатели за сесията','Session readings')}</h3><div className="desk-readings">{([['power_w',t('Мощност','Power'),'W'],['oxygen_flow_lph','O₂','L/h'],['water_pct',t('Вода','Water'),'%'],['battery_pct',t('Батерия','Battery'),'%']] as const).map(([k,label,unit])=><div key={k}><small>{label}</small><strong>{row.stats![k]??'—'} {unit}</strong></div>)}</div>{row.stats.time&&<small>{new Date(row.stats.time).toLocaleString()}</small>}</section>}
-    </header><div className="desk-log" ref={log} role="log">{row.messages.map(m=><article key={m.id} className={m.agent===row.viewer_agent?'own':''}><span className="desk-author">{(m.agent?row.agent_photo:row.customer_photo)&&<img alt="" src={(m.agent?row.agent_photo:row.customer_photo)!}/>}<strong>{m.agent?row.agent:row.customer}</strong></span> <small>{new Date(m.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</small><p>{m.body}</p></article>)}</div>
+    </header><div className="desk-log" ref={log} role="log">{row.messages.map(m=><article key={m.id} className={m.agent===row.viewer_agent?'own':''}><span className="desk-author">{(m.agent?row.agent_photo:row.customer_photo)&&<img alt="" src={(m.agent?row.agent_photo:row.customer_photo)!}/>}<strong>{m.agent?row.agent:row.customer}</strong></span> <small>{new Date(m.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</small><p>{m.body}</p>{m.file&&<button onClick={()=>download(id,m.id,m.file!).catch(e=>setNote(e.message))}>📎 {m.file}</button>}</article>)}</div>
     <footer className="desk-composer">{live&&!row.viewer_agent&&row.remaining!==null&&row.remaining<=60&&<small role="alert" className="idle-warning">{t("Остава под минута. Изпрати съобщение, за да продължиш.","Less than a minute left. Send a message to keep chatting.")}</small>}{live&&row.typing&&<small className="desk-typing" role="status">{row.viewer_agent?row.customer:row.agent} {t("пише","is typing")} <i/><i/><i/></small>}{!row.closed&&<>{live&&!row.agent?row.viewer_agent?<button className="btn btn-primary" disabled={busy} onClick={()=>action('accept')}>{t('Приеми сесията','Accept session')}</button>:<p role="status">{t('Заявката е изпратена. Остави прозореца отворен, докато агент приеме.','Request sent. Keep this window open until an agent accepts.')}</p>:<form className="modal-form" onSubmit={e=>{e.preventDefault();void action('reply')}}><label>{!live&&t('Съобщение','Message')}<textarea aria-label={t('Съобщение','Message')} placeholder={t('Напиши съобщение…','Write a message…')} onKeyDown={e=>{
       if(live&&e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){
         e.preventDefault()
-        if(!e.repeat&&!busy&&draft.trim())e.currentTarget.form?.requestSubmit()
+        if(!e.repeat&&!busy&&(draft.trim()||attached))e.currentTarget.form?.requestSubmit()
       }
-    }} value={draft} onChange={e=>typing(e.target.value)} maxLength={4000} required/></label><button className="btn btn-primary" disabled={busy||!draft.trim()} aria-label={t('Изпрати','Send')} title={t('Изпрати','Send')}>{live?<Send size={18}/>:t('Изпрати','Send')}</button></form>}
+    }} value={draft} onChange={e=>typing(e.target.value)} maxLength={4000} required={!attached}/></label><label className="file-pick">📎 <span>{attachment.current?.files?.[0]?.name||t("Файл","File")}</span><input type="file" ref={attachment} onChange={e=>setAttached(!!e.target.files?.length)}/></label><button className="btn btn-primary" disabled={busy||(!draft.trim()&&!attached)} aria-label={t('Изпрати','Send')} title={t('Изпрати','Send')}>{live?<Send size={18}/>:t('Изпрати','Send')}</button></form>}
     {(!row.viewer_agent||row.agent)&&<button className="btn btn-quiet" disabled={busy} onClick={()=>action('close')}>{t('Приключи разговора','End conversation')}</button>}</>}
     {onDelete&&row.channel==="ticket"&&!row.viewer_agent&&<button type="button" className="btn btn-quiet" disabled={busy} onClick={remove}>{t("Изтрий запитването","Delete inquiry")}</button>}</footer>
   </>}</>
@@ -154,7 +173,7 @@ export default function Support({trees}:{trees:Tree[]}){
     e.preventDefault();if(busy)return
     const form=e.currentTarget,data=Object.fromEntries(new FormData(form)),win=channel==='chat'?popup('about:blank'):null
     setBusy(true);setError('');setBlocked(null)
-    try{const r=await request<{id:number}>('/support',{method:'POST',body:JSON.stringify({...data,channel,tree_id:treeId?Number(treeId):null})})
+    try{const r=await request<{id:number}>('/support',{method:'POST',body:JSON.stringify({...data,file:await upload(data.file as File),channel,tree_id:treeId?Number(treeId):null})})
       if(channel==='chat'){if(win)win.location.replace(chatUrl(r.id));else setBlocked(r.id)}else select(r.id)
       form.reset();setTree('');refresh(v=>v+1)
     }catch(e){win?.close();setError((e as Error).message)}finally{setBusy(false)}
@@ -185,7 +204,8 @@ export default function Support({trees}:{trees:Tree[]}){
       <label>{t('За кое устройство е запитването?','Which device do you need help with?')}<select value={treeId} onChange={e=>setTree(e.target.value)}><option value="">{t('Общо запитване','General inquiry')}</option>{trees.map(r=><option key={r.id} value={r.id}>{r.name} · {r.code}</option>)}</select></label>
       {tree&&<small className="warranty-label">{warrantyText(tree.warranty_until)}</small>}
       <label>{t('Категория','Category')}<select name="category">{Object.entries(categories()).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
-      <label>{t('Тема','Subject')}<input required name="subject" minLength={2} maxLength={140}/></label><label>{t('Опиши проблема','Describe the issue')}<textarea required name="body" maxLength={4000}/></label>
+      <label>{t('Тема','Subject')}<input required name="subject" minLength={2} maxLength={140}/></label><label>{t('Опиши проблема','Describe the issue')}<textarea required name="body" maxLength={4000}/></label><label>{t("Прикачи файл или снимка (до 2 MB)","Attach a file or photo (up to 2 MB)")}<input name="file" type="file"/></label>
       <button disabled={busy} className="btn btn-primary">{channel==='chat'?t('Поискай връзка с агент','Request live chat'):t('Изпрати запитване','Submit request')}</button></form>}</section></div></main>
 }
+
 

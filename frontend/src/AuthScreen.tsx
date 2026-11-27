@@ -1,3 +1,4 @@
+import Downloads from './Downloads'
 import {Button} from '@radix-ui/themes'
 import {tr,getLanguage} from './language'
 import {LanguageButton} from './LanguageButton'
@@ -133,6 +134,7 @@ export default function AuthScreen({onSuccess}: {onSuccess: (payload: TokenPaylo
           </div>
         </section>
       </div>
-    </main>
+    <Downloads/>    </main>
   )
 }
+

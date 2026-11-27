@@ -1,7 +1,7 @@
 [Setup]
 AppId=Solix.WebApp
 AppName=Solix
-AppVersion=1.0.2
+AppVersion=1.0.3
 DefaultDirName={localappdata}\Solix
 DefaultGroupName=Solix
 PrivilegesRequired=lowest
@@ -18,4 +18,5 @@ Source: "Solix.ico"; DestDir: "{app}"
 [Icons]
 Name: "{autoprograms}\Solix"; Filename: "{app}\Solix.exe"; IconFilename: "{app}\Solix.ico"
 Name: "{autodesktop}\Solix"; Filename: "{app}\Solix.exe"; IconFilename: "{app}\Solix.ico"
+
 

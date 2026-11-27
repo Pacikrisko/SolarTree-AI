@@ -218,3 +218,10 @@ class ChatRating(Base):
     __tablename__ = 'support_chat_ratings'
     ticket: Mapped[int] = mapped_column(ForeignKey('support_tickets.id'), primary_key=True)
     stars: Mapped[int] = mapped_column()
+
+
+class SupportFile(Base):
+    __tablename__ = 'support_files'
+    message: Mapped[int] = mapped_column(ForeignKey('support_messages.id'),primary_key=True)
+    name: Mapped[str] = mapped_column(String(180))
+    content: Mapped[bytes] = mapped_column()

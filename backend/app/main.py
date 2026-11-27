@@ -18,14 +18,14 @@ from typing import Annotated, Literal
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Depends, HTTPException, Header, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc, func, update, or_, delete
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from .database import Base, engine, get_db, SessionLocal
 from PIL import Image, ImageOps
-from .models import ChatRating, AccountPhoto, ChatConnection, LiveLease, SupportPresence, SupportAgent, DeviceWarranty, SupportTicket, SupportMessage
+from .models import SupportFile, ChatRating, AccountPhoto, ChatConnection, LiveLease, SupportPresence, SupportAgent, DeviceWarranty, SupportTicket, SupportMessage
 from .models import TreeMember, PairInvite, User, Tree, Reading, Alert, Maintenance, DeviceRegistration, MobilePairSession, DeviceSample, ChatExchange
 from .seed import DEMO_MODE, seed_demo
 from .google_login import google_client_id, google_user, verified_claims
@@ -894,7 +894,27 @@ def chat(data:ChatIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
 
 
 
+class Upload(BaseModel):
+    name: str = Field(min_length=1,max_length=180)
+    content: str = Field(min_length=1,max_length=2796204)
+
+
+def save_support_message(db,t,by_agent,data):
+    message=SupportMessage(ticket=t.id,by_agent=by_agent,body=data.body)
+    db.add(message)
+    if data.file:
+        try:
+            content=base64.b64decode(data.file.content,validate=True)
+        except ValueError:
+            raise HTTPException(422,'Невалиден файл.')
+        if len(content)>2097152:
+            raise HTTPException(413,'Максимум 2 MB.')
+        db.flush()
+        db.add(SupportFile(message=message.id,name=data.file.name,content=content))
+
+
 class TicketInput(BaseModel):
+    file: Upload | None = None
     category: Literal['account','connection','performance','warranty','other']
     channel: Literal['ticket','chat']
     subject: Annotated[str, StringConstraints(strip_whitespace=True,min_length=2,max_length=140)]
@@ -903,6 +923,7 @@ class TicketInput(BaseModel):
 
 
 class SupportReply(BaseModel):
+    file: Upload | None = None
     body: Annotated[str, StringConstraints(strip_whitespace=True,min_length=1,max_length=4000)]
 
 
@@ -1005,7 +1026,7 @@ def new_ticket(data:TicketInput,db:Session=Depends(get_db),user:User=Depends(log
     db.add(t);db.flush()
     if t.channel=="chat":
         db.add(LiveLease(ticket=t.id,tree_id=data.tree_id,customer_seen=support_now()))
-    db.add(SupportMessage(ticket=t.id,by_agent=False,body=data.body))
+    save_support_message(db,t,False,data)
     db.commit()
     return {'id':t.id}
 
@@ -1042,6 +1063,7 @@ def dismiss_notice(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(lo
 def delete_inquiry(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     row=support_ticket(db,user,ticket_id,True)
     if row.channel!='ticket' or row.owner!=user.id: raise HTTPException(403)
+    db.execute(delete(SupportFile).where(SupportFile.message.in_(select(SupportMessage.id).where(SupportMessage.ticket==ticket_id))))
     db.execute(delete(SupportMessage).where(SupportMessage.ticket==ticket_id))
     db.delete(row)
     db.commit()
@@ -1138,8 +1160,20 @@ def support_thread(ticket_id:int,db:Session=Depends(get_db),user:User=Depends(lo
     remaining=None
     if lease and lease.agent_seen and lease.agent_seen>=lease.customer_seen:
         remaining=max(0,300-int((support_now()-lease.agent_seen).total_seconds()))
+    files=dict(db.execute(select(SupportFile.message,SupportFile.name).join(SupportMessage,SupportMessage.id==SupportFile.message).where(SupportMessage.ticket==t.id)).all())
     return {**ticket_json(db,t,user.id),'remaining':remaining,'rating':agent_score(db,t.agent) if t.agent else None,'typing':bool(typing and typing>support_now()-timedelta(seconds=5)),
-            'customer_photo':profile_photo(db,t.owner),'agent_photo':profile_photo(db,t.agent),'viewer_agent':user.id!=t.owner,'stats':stats,'messages':[dict(id=m.id,agent=m.by_agent,body=m.body,time=m.created_at.isoformat()+'Z') for m in messages]}
+            'customer_photo':profile_photo(db,t.owner),'agent_photo':profile_photo(db,t.agent),'viewer_agent':user.id!=t.owner,'stats':stats,'messages':[dict(id=m.id,agent=m.by_agent,body=m.body,file=files.get(m.id),time=m.created_at.isoformat()+'Z') for m in messages]}
+
+
+@app.get('/api/support/{ticket_id}/files/{message_id}')
+def download_support_file(ticket_id:int,message_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
+    t=support_ticket(db,user,ticket_id)
+    if t.channel=='chat' and user.id not in (t.agent,t.owner):
+        raise HTTPException(404)
+    file=db.scalar(select(SupportFile).join(SupportMessage,SupportMessage.id==SupportFile.message)
+                   .where(SupportFile.message==message_id,SupportMessage.ticket==t.id))
+    if not file: raise HTTPException(404)
+    return Response(file.content,media_type='application/octet-stream',headers={'Content-Disposition':'attachment','X-Content-Type-Options':'nosniff'})
 
 
 @app.post('/api/support/{ticket_id}/reply')
@@ -1163,7 +1197,7 @@ def support_reply(ticket_id:int,data:SupportReply,db:Session=Depends(get_db),use
         if connection:
             if by_agent: connection.agent_typing=None
             else: connection.customer_typing=None
-    db.add(SupportMessage(ticket=t.id,by_agent=by_agent,body=data.body))
+    save_support_message(db,t,by_agent,data)
     db.commit()
     return {'ok':True}
 
@@ -1197,4 +1231,5 @@ if (FRONTEND_DIST / 'index.html').is_file():
         if resolved.is_relative_to(FRONTEND_DIST.resolve()) and resolved.is_file():
             return FileResponse(resolved)
         return FileResponse(FRONTEND_DIST / 'index.html', headers={'Cache-Control':'no-cache'})
+
 
