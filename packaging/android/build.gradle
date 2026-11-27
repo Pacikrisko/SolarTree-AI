@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application' version '8.8.2'
 }
+def releaseInfo = new groovy.json.JsonSlurper().parse(file('../../frontend/public/client-version.json'))
 android {
     namespace 'space.pgknma.solix'
     compileSdk 35
@@ -8,9 +9,10 @@ android {
         applicationId 'space.pgknma.solix'
         minSdk 23
         targetSdk 35
-        versionCode 4
-        versionName '1.0.3'
+        versionCode releaseInfo.minimumBuild
+        versionName releaseInfo.version
     }
 }
+
 
 

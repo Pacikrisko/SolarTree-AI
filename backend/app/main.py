@@ -1,4 +1,5 @@
 """Solix API: account-scoped monitoring; advisory-only analytics and chat."""
+import json
 import os
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -66,7 +67,13 @@ async def lifespan(app: FastAPI):
         db.commit()
     yield
 
-app = FastAPI(title='Solix', version='0.8.0-deploy', lifespan=lifespan)
+project_root = Path(__file__).resolve().parents[2]
+release_manifest = project_root / 'frontend_dist/client-version.json'
+if not release_manifest.is_file():
+    release_manifest = project_root / 'frontend/public/client-version.json'
+app_version = json.loads(release_manifest.read_text())['version']
+
+app = FastAPI(title='Solix', version=app_version, lifespan=lifespan)
 app.include_router(password_reset_router)
 app.add_middleware(CORSMiddleware, allow_origins=['http://localhost:5173','http://127.0.0.1:5173'],
                    allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
@@ -241,7 +248,7 @@ def attach_device(db: Session, reg: DeviceRegistration, user: User, tree: Tree, 
 def health():
     provider=assistant_provider()
     return {'ok':True,'real_llm':bool(provider),'ai_provider':provider,'simulation_enabled':DEMO_MODE,
-            'version':'0.8.0-deploy'}
+            'version':app_version}
 class GoogleLoginIn(BaseModel):
     credential: str = Field(min_length=1, max_length=8192)
     password: str | None = Field(default=None, max_length=128)
@@ -1231,5 +1238,6 @@ if (FRONTEND_DIST / 'index.html').is_file():
         if resolved.is_relative_to(FRONTEND_DIST.resolve()) and resolved.is_file():
             return FileResponse(resolved)
         return FileResponse(FRONTEND_DIST / 'index.html', headers={'Cache-Control':'no-cache'})
+
 
 

@@ -1,0 +1,7 @@
+.download-banner{box-sizing:border-box;width:min(calc(100% - 32px),1648px);margin:24px auto;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:clamp(18px,3vw,32px);border-radius:22px;border:1px solid #417454;color:#f1ffef;background:radial-gradient(ellipse at 82% 110%,#305c41,transparent 68%),linear-gradient(110deg,#132f26,#1d402e);box-shadow:0 5px 18px #10261c16}
+.download-identity,.download-actions,.download-actions a{display:flex;align-items:center;gap:12px}
+.download-identity{min-width:0}.download-identity img{flex:none}.download-banner h2{font:inherit;font-weight:700;font-size:clamp(18px,2vw,24px);margin:0;color:#f1ffef}
+.download-banner p{margin:4px 0 0;color:#c4d8ca;font-size:.9rem}
+.download-actions{flex-wrap:wrap}.download-actions a{justify-content:center;min-height:44px;padding:0 14px;border-radius:12px;background:#c4f29f;color:#142c1d;font-weight:650;text-decoration:none}
+.download-actions a:last-child{background:#eef6ec}.download-actions a:hover{box-shadow:0 0 0 2px #82ae83}
+@media(max-width:580px){.download-actions{width:100%;gap:8px}.download-actions a{flex:1}.download-identity img{width:42px;height:42px}}

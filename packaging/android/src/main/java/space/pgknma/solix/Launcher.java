@@ -9,10 +9,14 @@ import android.os.IBinder;
 import android.widget.Toast;
 
 public class Launcher extends Activity {
+    private int getBuildNumber() {
+        try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionCode; }
+        catch (android.content.pm.PackageManager.NameNotFoundException e) { throw new IllegalStateException(e); }
+    }
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        Intent browser = new Intent(Intent.ACTION_VIEW, Uri.parse("https://solartree-ai.onrender.com/?solixClient=android&build=4"));
+        Intent browser = new Intent(Intent.ACTION_VIEW, Uri.parse("https://solartree-ai.onrender.com/?solixClient=android&build=" + getBuildNumber()));
         Bundle extras = new Bundle();
         extras.putBinder("android.support.customtabs.extra.SESSION", (IBinder) null);
         browser.putExtras(extras);
@@ -25,5 +29,6 @@ public class Launcher extends Activity {
         finish();
     }
 }
+
 
 

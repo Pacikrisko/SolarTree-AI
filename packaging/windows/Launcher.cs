@@ -4,7 +4,7 @@ using System.IO;
 using System.Windows.Forms;
 
 static class Launcher {
-    const string Url = "https://solartree-ai.onrender.com/?solixClient=windows&build=4";
+    static readonly string Url = "https://solartree-ai.onrender.com/?solixClient=windows&build=" + typeof(Launcher).Assembly.GetName().Version.Revision;
     [STAThread]
     static void Main() {
         try {
@@ -22,5 +22,6 @@ static class Launcher {
         }
     }
 }
+
 
 
