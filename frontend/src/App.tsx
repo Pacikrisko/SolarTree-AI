@@ -107,7 +107,6 @@ function RemoveTreeDialog({tree,onCancel,onConfirm}:{tree:Tree;onCancel:()=>void
   </dialog>
 }
 export default function App(){
-  const [removeTarget,setRemoveTarget]=useState<Tree|null>(null)
   const [theme,setTheme]=useState<'dark'|'light'>(()=>localStorage.getItem('solartree_theme')==='dark'?'dark':'light')
   useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('solartree_theme',theme)},[theme])
   function toggleTheme(){
@@ -181,6 +180,7 @@ function Workspace({logout,theme,toggleTheme}:{logout:()=>void;theme:'dark'|'lig
   const message=(msg:string)=>{setToast(msg);window.setTimeout(()=>setToast(''),4200)}
   const [accountStatus,setAccountStatus]=useState<'loading'|'ready'|'error'>('loading')
   const refreshVersion=useRef(0)
+  const [removeTarget,setRemoveTarget]=useState<Tree|null>(null)
   const refresh=useCallback(async()=>{
     const version=++refreshVersion.current
     const [ts,as,ss,h]=await Promise.all([api.trees(),api.alerts(),api.maintenance(),api.health()]).catch(error=>{
