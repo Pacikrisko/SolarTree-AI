@@ -65,6 +65,7 @@ async def lifespan(app: FastAPI):
     upgrade(engine)
     with SessionLocal() as db:
         seed_demo(db)
+        ensure_printed_registrations(db)
         initialize_maintenance(db)
         for tree in db.scalars(select(Tree)):
             if tree.lat is None and tree.lng is None:
@@ -263,6 +264,29 @@ SHARED_QR_HASHES = {
     "SOLIX-HALO-0002": "4b4b4bbfd00c14512dcaf4fbb6d8ddd7ab5e1920793657b888e58aa3cf76b85c"
 }
 
+# Permanent invitations printed in the original Solix pairing PDF.
+PRINTED_QR_HASHES = {
+    'IVAN-TREE-0001': '95b519437b72ead63f60dfb73d3cfad1dad781ba605a25e458ef491912e3028b',
+    'SOLIX-ARC-0001': '24e42e41402eb5fd4499cd90375f1dd4c6766f63a81ce3898f34ddfc4fb19e27',
+    'SOLIX-HALO-0002': '92beffc0e534187f6a26557924b8e8d61713e988de71508ec929f22fbad1e60d',
+}
+
+
+def ensure_printed_registrations(db: Session):
+    for code, digest in PRINTED_QR_HASHES.items():
+        reg = db.scalar(select(DeviceRegistration).where(DeviceRegistration.code == code))
+        if reg is None:
+            reg = DeviceRegistration(code=code, kind='private',
+                model_code='ST-IVAN-P1' if code == 'IVAN-TREE-0001' else 'ST-URBAN-2KW',
+                claim_hash=digest, telemetry_hash=secrets.token_hex(32))
+            db.add(reg)
+        if reg.claimed_tree_id is None:
+            tree = db.scalar(select(Tree).where(Tree.code == code))
+            if tree is not None:
+                reg.claimed_tree_id = tree.id
+                reg.bound_user_id = tree.owner_id
+
+
 # Existing printed QR labels and the Prototype P1 manual must keep working.
 # Only hashes are stored in code. The underlying QR token is never logged.
 LEGACY_QR_ALIASES = {"URBAN-TREE-0001": "SOLIX-ARC-0001"}
@@ -281,6 +305,7 @@ def verify_pair(db: Session, code: str, claim: str, user: User) -> DeviceRegistr
     digest = sha256(claim.encode()).hexdigest()
     invite = db.get(PairInvite,digest)
     if not reg or not (compare_digest(reg.claim_hash,digest)
+                       or compare_digest(PRINTED_QR_HASHES.get(reg.code,''),digest)
                        or compare_digest(SHARED_QR_HASHES.get(reg.code,''),digest)
                        or compare_digest(LEGACY_QR_HASHES.get(reg.code,''),digest)
                        or (invite and invite.registration_id==reg.id)):
@@ -288,7 +313,7 @@ def verify_pair(db: Session, code: str, claim: str, user: User) -> DeviceRegistr
     if reg.claimed_tree_id:
         if reg.bound_user_id==user.id or db.get(TreeMember,(reg.claimed_tree_id,user.id)):
             raise HTTPException(409,'Дървото вече е добавено в профила.')
-    elif reg.bound_user_id not in (None,user.id):
+    elif reg.bound_user_id not in (None,user.id) and not compare_digest(PRINTED_QR_HASHES.get(reg.code,''), digest):
         raise HTTPException(status_code=409,detail='Това устройство вече е регистрирано.')
     if (user.role=='municipality' and reg.kind!='municipal') or (user.role=='owner' and reg.kind!='private'):
         raise HTTPException(status_code=403,detail='Устройството не принадлежи към този тип профил.')
@@ -306,7 +331,8 @@ def attach_device(db: Session, reg: DeviceRegistration, user: User, tree: Tree, 
     # Reserve the inventory row before inserting a tree, even for simultaneous claims.
     reserved=db.execute(update(DeviceRegistration).where(
         DeviceRegistration.id==reg.id, DeviceRegistration.claimed_tree_id.is_(None),
-        or_(DeviceRegistration.bound_user_id.is_(None),DeviceRegistration.bound_user_id==user.id)
+        or_(DeviceRegistration.bound_user_id.is_(None),DeviceRegistration.bound_user_id==user.id,
+            compare_digest(PRINTED_QR_HASHES.get(reg.code,''),sha256(claim.encode()).hexdigest()))
     ).values(bound_user_id=user.id))
     if reserved.rowcount!=1:
         raise HTTPException(status_code=409,detail='Това устройство вече е регистрирано.')
@@ -544,10 +570,6 @@ def phone_scan(token:str,data:ScanIn,db:Session=Depends(get_db)):
     candidate=tree
     tree=attach_device(db,reg,user,tree,claim)
     session.status='completed';session.tree_id=tree.id
-    if tree is not candidate and tree.lat is None and tree.lng is None:
-        lat,lng=locate(data.location)
-        if lat is not None:
-            tree.lat,tree.lng,tree.location=lat,lng,data.location.strip()
     if DEMO_MODE and candidate is tree and not is_urban_simulator(tree): add_demo_urban_history(db,tree)
     db.commit();initialize_maintenance(db)
     return {'ok':True,'name':tree.name,'model':get_model(tree.model_code, tree.code)['name']}
