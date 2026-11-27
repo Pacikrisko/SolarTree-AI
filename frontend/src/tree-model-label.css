@@ -1,0 +1,4 @@
+.model-panel-top:has(.tree-model-label){flex-wrap:wrap;gap:.75rem}
+.model-panel-top .tree-model-label{align-self:flex-start;display:inline-flex;align-items:center;gap:.45rem;max-width:100%;min-width:0;box-sizing:border-box;padding:.42rem .72rem;border:1px solid #bad9c8;border-radius:999px;background:#edf6f0;color:#24523c;font-size:.82rem;line-height:1.35;text-align:start}
+.tree-model-label svg{flex:none}.tree-model-label strong{overflow-wrap:anywhere;font-weight:700}
+:root[data-theme=dark] .tree-model-label{background:#203d31;border-color:#416953;color:#d6f3df}
