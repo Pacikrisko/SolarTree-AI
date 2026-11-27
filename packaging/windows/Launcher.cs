@@ -12,11 +12,13 @@ static class Launcher {
                                            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles) }) {
                 var edge = Path.Combine(folder, @"Microsoft\Edge\Application\msedge.exe");
                 if (File.Exists(edge)) {
-                    Process.Start(edge, "--app=" + Url);
+                    Process.Start(new ProcessStartInfo(edge, "--start-maximized --app=\"" + Url + "\"") {
+                        WindowStyle = ProcessWindowStyle.Maximized
+                    });
                     return;
                 }
             }
-            Process.Start(new ProcessStartInfo(Url) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(Url) { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Maximized });
         } catch (Exception) {
             MessageBox.Show("Не успяхме да отворим Solix.", "Solix");
         }
