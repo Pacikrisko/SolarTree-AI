@@ -204,7 +204,9 @@ def latest_reading(db: Session, tree: Tree):
 def can_read(db,user: User, tree: Tree) -> bool:
     return (tree.owner_id==user.id or db.get(TreeMember,(tree.id,user.id)) is not None) and tree.kind==('municipal' if user.role=='municipality' else 'private')
 def can_manage(db,user: User, tree: Tree) -> bool:
-    return can_read(db,user,tree)  # Only advisory UI and service records, NEVER direct plant safety control
+    # Joining with the persistent QR grants read-only access. Only the owner
+    # can change coordinates, maintenance and device-wide alert state.
+    return can_read(db,user,tree) and tree.owner_id == user.id
 
 def accessible_trees(db: Session, user: User):
     kind = 'municipal' if user.role=='municipality' else 'private'
@@ -253,13 +255,27 @@ SHARED_QR_HASHES = {
     "SOLIX-HALO-0002": "4b4b4bbfd00c14512dcaf4fbb6d8ddd7ab5e1920793657b888e58aa3cf76b85c"
 }
 
+# Existing printed QR labels and the Prototype P1 manual must keep working.
+# Only hashes are stored in code. The underlying QR token is never logged.
+LEGACY_QR_ALIASES = {"URBAN-TREE-0001": "SOLIX-ARC-0001"}
+LEGACY_QR_HASHES = {
+    "IVAN-TREE-0001": "ec53ce14026b639d7e8f36dc5ef35ce273cf1b43a47aa97972bdc41af24d212c",
+    "SOLIX-ARC-0001": "71cf3c6127b292e2007cc4e4fa564e1a31598ab9c4728f406ec3af46faec547f",
+}
+
 
 def verify_pair(db: Session, code: str, claim: str, user: User) -> DeviceRegistration:
-    reg=db.scalar(select(DeviceRegistration).where(DeviceRegistration.code==code.strip().upper()))
-    # Identical errors for unrecognized/incorrect keys; never enumerate inventory from user input.
+    requested = code.strip().upper()
+    canonical = LEGACY_QR_ALIASES.get(requested, requested)
+    reg=db.scalar(select(DeviceRegistration).where(DeviceRegistration.code==canonical))
+    # A QR verifies knowledge of the registration secret. An existing Tree
+    # stays owned by its first owner; additional users join as members.
     digest = sha256(claim.encode()).hexdigest()
     invite = db.get(PairInvite,digest)
-    if not reg or not (compare_digest(reg.claim_hash,digest) or compare_digest(SHARED_QR_HASHES.get(reg.code,''),digest) or (invite and invite.registration_id==reg.id)):
+    if not reg or not (compare_digest(reg.claim_hash,digest)
+                       or compare_digest(SHARED_QR_HASHES.get(reg.code,''),digest)
+                       or compare_digest(LEGACY_QR_HASHES.get(reg.code,''),digest)
+                       or (invite and invite.registration_id==reg.id)):
         raise HTTPException(status_code=404,detail='Неуспешно сдвояване. Провери QR кода и кода за регистрация.')
     if reg.claimed_tree_id:
         if reg.bound_user_id==user.id or db.get(TreeMember,(reg.claimed_tree_id,user.id)):
@@ -553,7 +569,7 @@ def trees(db:Session=Depends(get_db),user:User=Depends(logged_in)):
     return [to_tree(db,t) for t in accessible_trees(db,user)]
 @app.post('/api/trees',status_code=201)
 def create_tree(data:TreeIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
-    # One-time claim must be serialized: only one user can redeem a manufacturing QR.
+    # Keep one Tree per serial; subsequent valid QR scans link a new account to it.
     reg=verify_pair(db,data.code,data.claim_token,user)
     if reg.claimed_tree_id is None and db.scalar(select(Tree).where(Tree.code==reg.code)):
         raise HTTPException(status_code=409,detail='Това устройство вече е регистрирано.')
@@ -585,7 +601,7 @@ def set_coordinates(tree_id:int, data:CoordinatesIn, db:Session=Depends(get_db),
 def remove_tree(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     db.scalar(select(DeviceRegistration).where(DeviceRegistration.claimed_tree_id==tree_id).with_for_update())
     tree=db.scalar(select(Tree).where(Tree.id==tree_id).with_for_update())
-    if tree is None or not can_manage(db,user,tree):
+    if tree is None or not can_read(db,user,tree):
         raise HTTPException(status_code=404,detail='Дървото не е намерено в твоя профил.')
     registration=db.scalar(select(DeviceRegistration).where(DeviceRegistration.claimed_tree_id==tree.id))
     member=db.get(TreeMember,(tree.id,user.id))
@@ -711,6 +727,8 @@ def service_complete(tree_id:int,component:str,db:Session=Depends(get_db),user:U
 @app.put('/api/trees/{tree_id}/maintenance/{component}')
 def update_service_schedule(tree_id:int,component:str,data:ServiceScheduleIn,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     tree=find_tree(db,tree_id,user)
+    if not can_manage(db,user,tree):
+        raise HTTPException(status_code=403,detail='Само собственикът може да променя сервизния график.')
     if component not in COMPONENTS:
         raise HTTPException(status_code=404,detail='Непознат сервизен компонент.')
     record=db.scalar(select(Maintenance).where(Maintenance.tree_id==tree.id,Maintenance.component==component))
@@ -730,14 +748,16 @@ def alerts(db:Session=Depends(get_db),user:User=Depends(logged_in)):
             t=db.get(Tree,a.tree_id)
             out.append({'id':a.id,'tree_id':a.tree_id,'tree_name':t.name,'message':a.message,
                         'severity':a.severity,'acknowledged':a.acknowledged,
-                        'time':a.created_at.isoformat()+'Z','can_ack':True})
+                        'time':a.created_at.isoformat()+'Z','can_ack':t.owner_id==user.id})
     return out
 @app.post('/api/alerts/{alert_id}/ack')
 def acknowledge(alert_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     a=db.get(Alert,alert_id)
     if not a:
         raise HTTPException(status_code=404,detail='Няма такова известие.')
-    find_tree(db,a.tree_id,user)
+    tree=find_tree(db,a.tree_id,user)
+    if not can_manage(db,user,tree):
+        raise HTTPException(status_code=403,detail='Само собственикът може да потвърждава общите известия.')
     a.acknowledged=True;db.commit()
     return {'ok':True}
 

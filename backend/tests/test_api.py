@@ -721,3 +721,53 @@ def test_support_queue_privacy_and_agent_replies():
         assert c.post(path+'/typing',headers=owner).status_code==404
 
 
+
+
+def test_existing_printed_qr_codes_can_be_reused_by_additional_accounts():
+    """Printed Prototype P1 and old Urban labels remain valid with shared history."""
+    from app.database import SessionLocal
+    from app.models import TreeMember
+    with TestClient(app) as c:
+        account = c.post('/api/auth/register', json={
+            'name': 'QR Viewer', 'email': 'qrviewer2026@example.org',
+            'password': 'StrongTestPassword2026'})
+        assert account.status_code == 201, account.text
+        viewer = {'Authorization': 'Bearer ' + account.json()['access_token']}
+        cases = [
+            ('IVAN-TREE-0001', 'IVAN-TREE-0001', 'IVAN-PROTOTYPE-PAIR-2026'),
+            ('URBAN-TREE-0001', 'SOLIX-ARC-0001', 'URBAN-2KW-PAIR-2026'),
+        ]
+        for printed_serial, canonical, printed_token in cases:
+            lookup = c.post('/api/pair/resolve', headers=viewer, json={
+                'code': printed_serial, 'claim_token': printed_token})
+            assert lookup.status_code == 200, lookup.text
+            assert lookup.json()['code'] == canonical
+            existing = None
+            with SessionLocal() as db:
+                from app.models import Tree
+                from sqlalchemy import select
+                existing = db.scalar(select(Tree).where(Tree.code == canonical))
+                assert existing is not None
+                original_owner = existing.owner_id
+                tree_id = existing.id
+            joined = c.post('/api/trees', headers=viewer, json={
+                'name': 'My shared view', 'code': printed_serial,
+                'claim_token': printed_token, 'location': 'Viewing only',
+                'lat': None, 'lng': None})
+            assert joined.status_code == 201, joined.text
+            assert joined.json()['id'] == tree_id
+            assert c.get(f'/api/trees/{tree_id}', headers=viewer).status_code == 200
+            assert c.get(f'/api/trees/{tree_id}/readings', headers=viewer).status_code == 200
+            assert c.patch(f'/api/trees/{tree_id}/coordinates', headers=viewer,
+                json={'lat': 42.0, 'lng': 25.0}).status_code == 403
+            assert c.put(f'/api/trees/{tree_id}/maintenance/water_filter',
+                headers=viewer, json={'interval_days': 90}).status_code == 403
+            assert c.post('/api/pair/resolve', headers=viewer, json={
+                'code': printed_serial, 'claim_token': printed_token}).status_code == 409
+            with SessionLocal() as db:
+                from app.models import Tree
+                assert db.get(Tree, tree_id).owner_id == original_owner
+                assert db.get(TreeMember, (tree_id, account.json()['user']['id'])) is not None
+        listing = c.get('/api/trees', headers=viewer)
+        assert listing.status_code == 200
+        assert {t['code'] for t in listing.json()} >= {'IVAN-TREE-0001', 'SOLIX-ARC-0001'}

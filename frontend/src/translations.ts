@@ -42,6 +42,7 @@ export const english:Record<string,string> = {
   "Сериен номер": "Serial number",
   "Напр. ST-M6-1001": "e.g. ST-M6-1001",
   "Еднократен код за сдвояване": "One-time pairing code",
+  "Код за свързване": "Pairing code",
   "Код от устройството или QR етикета": "Code from the device or QR label",
   "Проверка…": "Checking…",
   "Разпознай модела": "Identify model",
