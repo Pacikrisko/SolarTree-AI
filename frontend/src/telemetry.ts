@@ -7,7 +7,7 @@ export function latestMetric(tree:Tree|null, field:Metric) {
   if(sensor && sensor[field]!=null && (reading?.[field]==null || Date.parse(sensor.time)>=Date.parse(reading.time))) {
     return sensor[field]
   }
-  return reading?.[field] ?? null
+  return reading?.[field] ?? tree?.prototype_estimates?.[field] ?? null
 }
 
 export function latestTime(tree:Tree|null) {

@@ -3,6 +3,9 @@ import json
 import os
 from pathlib import Path
 from uuid import UUID, uuid4
+from math import sin, pi
+from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 import random
 import logging
 import base64
@@ -136,6 +139,53 @@ def to_reading(reading: Reading):
             'water_pct':reading.water_pct,'source':reading.source,
             'electrolyzer_power_w':reading.electrolyzer_power_w,
             'oxygen_flow_lph':reading.oxygen_flow_lph,'oxygen_basis':reading.oxygen_basis}
+def prototype_estimates(when):
+    local=when.replace(tzinfo=timezone.utc).astimezone(ZoneInfo('Europe/Sofia'))
+    hour=local.hour+local.minute/60
+    sun=max(0,sin(pi*(hour-6)/12)) if 6<hour<18 else 0
+    power=round(16*sun,2)
+    cell=round(.75*power,2)
+    return dict(power_w=power,electrolyzer_power_w=cell,oxygen_flow_lph=round(.10*cell,2),
+                water_pct=80,temperature_c=round(19+5*sun,1),humidity_pct=round(54-9*sun,1),
+                h2_sensor_value=round(.10+.04*sun,3))
+
+
+def prototype_history(db,tree,limit):
+    end=datetime.now(timezone.utc).replace(tzinfo=None,second=0,microsecond=0)
+    start=end-timedelta(minutes=15*(limit-1))
+    buckets={}
+    for cls in (Reading,DeviceSample):
+        query=select(cls).where(cls.tree_id==tree.id,cls.time>=start,cls.time<end+timedelta(minutes=1))
+        if cls is Reading: query=query.where(Reading.source=='device')
+        for sample in db.scalars(query):
+            slot=min(limit-1,int((sample.time-start).total_seconds()//900))
+            buckets.setdefault(slot,[]).append(sample)
+    rows=[]
+    for slot in range(limit):
+        when=start+timedelta(minutes=15*slot)
+        values=prototype_estimates(when)
+        measured=set()
+        basis='simulation'
+        for sample in sorted(buckets.get(slot,[]),key=lambda r:r.time):
+            for field in values:
+                value=getattr(sample,field,None)
+                if value is not None:
+                    values[field]=value
+                    measured.add(field)
+            if sample.oxygen_flow_lph is not None: basis=sample.oxygen_basis
+            elif getattr(sample,'hydrogen_flow_lph',None) is not None:
+                values['oxygen_flow_lph']=sample.hydrogen_flow_lph/2
+                measured.add('oxygen_flow_lph')
+                basis='estimated'
+        if 'power_w' in measured and 'electrolyzer_power_w' not in measured:
+            values['electrolyzer_power_w']=.75*max(0,min(16,values['power_w']))
+        if 'oxygen_flow_lph' not in measured:
+            values['oxygen_flow_lph']=round(.10*values['electrolyzer_power_w'],2)
+        rows.append(SimpleNamespace(id=-int(when.replace(tzinfo=timezone.utc).timestamp()),tree_id=tree.id,time=when,
+                    source='simulation' if len(measured)<len(values) else 'device',oxygen_basis=basis,**values))
+    return rows
+
+
 def recent_readings(db: Session, tree: Tree, limit: int, source: str | None = None):
     if is_urban_simulator(tree):
         return urban_readings(tree, limit) if source in (None, 'simulation') else []
@@ -180,7 +230,7 @@ def to_tree(db: Session, tree: Tree):
     open_alerts=db.scalar(select(func.count()).select_from(Alert).where(Alert.tree_id==tree.id,Alert.acknowledged.is_(False))) or 0
     services=maintenance_for(db,tree)
     warranty=db.get(DeviceWarranty,tree.code)
-    return {'warranty_until':warranty.valid_until.date().isoformat() if warranty else None,'id':tree.id,'code':tree.code,'name':tree.name,'kind':tree.kind,
+    return {'prototype_estimates':{**prototype_estimates(now),'battery_pct':round(65+15*sin(2*pi*(now.hour-8)/24))} if tree.model_code=='ST-IVAN-P1' else None,'warranty_until':warranty.valid_until.date().isoformat() if warranty else None,'id':tree.id,'code':tree.code,'name':tree.name,'kind':tree.kind,
             'model':get_model(tree.model_code, tree.code),
             'location':tree.location,'lat':tree.lat,'lng':tree.lng,
             'latest':to_reading(last) if last else None,
@@ -191,7 +241,7 @@ def to_tree(db: Session, tree: Tree):
               'time':sensor.time.isoformat()+'Z', 'temperature_c':sensor.temperature_c,
               'humidity_pct':sensor.humidity_pct,'mq8_adc_raw':sensor.mq8_adc_raw,
               'power_w':sensor.power_w,'water_pct':sensor.water_pct,
-              'oxygen_flow_lph':sensor.oxygen_flow_lph} if sensor else None),
+              'oxygen_flow_lph':sensor.oxygen_flow_lph if sensor.oxygen_flow_lph is not None else sensor.hydrogen_flow_lph/2 if sensor.hydrogen_flow_lph is not None else None} if sensor else None),
             'connection':'live' if device_fresh else 'model' if last and last.source=='simulation' else 'offline'}
 
 def logged_in(db:Session=Depends(get_db),authorization:str|None=Header(default=None)):
@@ -596,6 +646,7 @@ def locked_tree_media(tree_id:int,db:Session=Depends(get_db),user:User=Depends(l
 def tree_readings(tree_id:int,limit:int=120,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     tree=find_tree(db,tree_id,user)
     limit=max(1,min(limit,500))
+    if tree.model_code=="ST-IVAN-P1": return [to_reading(r) for r in prototype_history(db,tree,limit)]
     rows=recent_readings(db,tree,limit)
     return [to_reading(r) for r in reversed(rows)]
 @app.get('/api/trees/{tree_id}/oxygen')
@@ -604,16 +655,12 @@ def tree_oxygen(tree_id:int,limit:int=240,db:Session=Depends(get_db),user:User=D
     last=latest_reading(db,tree)
     # Keep virtual history and device telemetry separate; never report a mixed total as measured.
     limit=max(2,min(limit,500))
-    samples=[]
     if tree.model_code=='ST-IVAN-P1':
-        samples=db.scalars(select(DeviceSample).where(DeviceSample.tree_id==tree.id,
-            or_(DeviceSample.oxygen_flow_lph.is_not(None),DeviceSample.hydrogen_flow_lph.is_not(None)))
-            .order_by(desc(DeviceSample.time)).limit(limit)).all()
-    if last is None and not samples:
-        return {'tree_id':tree.id,'points':[],'total_l':0,'current_flow_lph':None,
-                'basis':'unavailable','note':'Няма налични измервания.'}
-    rows=recent_readings(db,tree,limit,'device' if samples else last.source)
-    rows=sorted([*rows,*samples],key=lambda row:row.time)[-limit:]
+        rows=prototype_history(db,tree,limit)
+    elif last is None:
+        return {'tree_id':tree.id,'points':[],'total_l':0,'current_flow_lph':None,'basis':'unavailable','note':'Няма налични измервания.'}
+    else:
+        rows=sorted(recent_readings(db,tree,limit,last.source),key=lambda r:r.time)
     points=[]; total=0.0; prev=None
     for r in rows:
         flow=r.oxygen_flow_lph
@@ -632,12 +679,13 @@ def tree_oxygen(tree_id:int,limit:int=240,db:Session=Depends(get_db),user:User=D
     return {'tree_id':tree.id,'points':points,'total_l':round(total,2),
             'current_flow_lph':round(points[-1]['oxygen_flow_lph'],2) if points else None,
             'basis':points[-1]['basis'] if points else 'unavailable',
-            'note':'Натрупаният обем е изчислен от симулирания дебит за показания период.' if is_urban_simulator(tree) else 'Обемът е изчислен от наличните измервания за показания период; празните интервали не се запълват.'}
+            'note':'За липсващите показания се използва моделна оценка.' if tree.model_code=='ST-IVAN-P1' else 'Натрупаният обем е изчислен от симулирания дебит за показания период.' if is_urban_simulator(tree) else 'Обемът е изчислен от наличните измервания за показания период; празните интервали не се запълват.'}
 
 @app.get('/api/trees/{tree_id}/forecast')
 def tree_forecast(tree_id:int,db:Session=Depends(get_db),user:User=Depends(logged_in)):
     tree=find_tree(db,tree_id,user)
     latest=latest_reading(db,tree)
+    if tree.model_code=='ST-IVAN-P1': return predict_power(prototype_history(db,tree,120))
     if latest is None:
         return predict_power([])
     rows=recent_readings(db,tree,120,latest.source)
