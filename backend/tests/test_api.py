@@ -785,3 +785,30 @@ def test_bulgarian_settlement_names():
     for bg,en in [('гр. София','Sofia'),('Стара Загора','Stara Zagora'),('Търговище, Търговище','Targovishte, Targovishte')]:
         assert locate(bg)==locate(en) and locate(bg)[0] is not None
     assert locate('Абланица')==(None,None)
+
+
+def test_printed_invitation_retry_after_phone_pairing(monkeypatch):
+    from hashlib import sha256
+    from app.main import PRINTED_QR_HASHES
+
+    serial = 'SOLIX-HALO-0002'
+    token = 'synthetic-printed-invitation'
+    monkeypatch.setitem(PRINTED_QR_HASHES, serial, sha256(token.encode()).hexdigest())
+    monkeypatch.setenv('PUBLIC_SCANNER_URL', 'https://scanner.example.test')
+    with TestClient(app) as client:
+        headers = []
+        for i in range(2):
+            response = client.post('/api/auth/register', json={
+                'name': f'Printed viewer {i}', 'email': f'printed-viewer-{i}@example.org',
+                'password': 'StrongTestPassword2026'})
+            headers.append({'Authorization': 'Bearer ' + response.json()['access_token']})
+        payload = dict(code=serial, claim_token=token, name='Shared tree', location='Sofia')
+        first = client.post('/api/trees', headers=headers[0], json=payload)
+        assert first.status_code == 201
+        session = client.post('/api/pair-sessions', headers=headers[1]).json()
+        phone_token = session['url'].split('/')[-1]
+        scan = client.post('/api/scan/' + phone_token, json={'payload': f'STREE1|{serial}|{token}'})
+        assert scan.status_code == 200
+        retry = client.post('/api/trees', headers=headers[1], json=payload)
+        assert retry.status_code == 201
+        assert retry.json()['id'] == first.json()['id']
