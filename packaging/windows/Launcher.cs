@@ -8,7 +8,7 @@ using System.Threading;
 using System.Windows.Forms;
 
 static class Launcher {
-    static readonly string Url = "https://solartree-ai.onrender.com/?solixClient=windows&build=" + typeof(Launcher).Assembly.GetName().Version.Revision;
+    static readonly string Url = "https://solartree.pgknma.space/?solixClient=windows&build=" + typeof(Launcher).Assembly.GetName().Version.Revision;
     private delegate bool WindowVisitor(IntPtr window, IntPtr data);
     [DllImport("user32.dll")] static extern bool EnumWindows(WindowVisitor visitor, IntPtr data);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);

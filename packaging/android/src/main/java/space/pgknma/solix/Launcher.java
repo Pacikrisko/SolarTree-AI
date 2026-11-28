@@ -16,7 +16,7 @@ public class Launcher extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        Intent browser = new Intent(Intent.ACTION_VIEW, Uri.parse("https://solartree-ai.onrender.com/?solixClient=android&build=" + getBuildNumber()));
+        Intent browser = new Intent(Intent.ACTION_VIEW, Uri.parse("https://solartree.pgknma.space/?solixClient=android&build=" + getBuildNumber()));
         Bundle extras = new Bundle();
         extras.putBinder("android.support.customtabs.extra.SESSION", (IBinder) null);
         browser.putExtras(extras);
