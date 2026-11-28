@@ -7,7 +7,7 @@ export default function Downloads(){
   const [guide,setGuide]=useState(false)
   if(window.matchMedia('(display-mode: standalone)').matches||(navigator as Navigator & {standalone?:boolean}).standalone||sessionStorage.getItem('solix.launcher'))return null
   const en=getLanguage()==='en'
-  const base='https://github.com/Pacikrisko/Solix/releases/latest/download/'
+  const base='https://github.com/SolixOfficial/Solix/releases/latest/download/'
   return <footer className="download-banner">
     <div className="download-identity"><img src="/solix.svg" width="52" height="52" alt=""/><div>
       <h2>{en?'Get the Solix app':'Изтегли приложението Solix'}</h2>
