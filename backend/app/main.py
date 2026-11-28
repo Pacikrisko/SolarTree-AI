@@ -538,6 +538,10 @@ def mobile_session(db:Session,token:str)->MobilePairSession:
         raise HTTPException(status_code=410,detail='Линкът е изтекъл. Създай нов от компютъра.')
     return row
 
+@app.get('/api/scanner/jsqr-1.4.0.js', include_in_schema=False)
+def scanner_decoder():
+    return FileResponse(Path(__file__).parent / 'vendor/jsqr/jsQR.js', media_type='application/javascript')
+
 @app.get('/scan/{token}')
 def phone_scanner(token:str,lang:Literal['bg','en']='bg',db:Session=Depends(get_db)):
     session=mobile_session(db,token)
